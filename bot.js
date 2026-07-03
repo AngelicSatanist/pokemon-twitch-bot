@@ -25,9 +25,15 @@ server.listen(PORT, () => {
     console.log(`Overlay running on port ${PORT}`);
 });
 
-const channels = process.env.TWITCH_CHANNELS
+const channels = (process.env.TWITCH_CHANNELS || process.env.TWITCH_CHANNEL || "")
     .split(",")
-    .map(channel => channel.trim().toLowerCase());
+    .map(channel => channel.trim().toLowerCase())
+    .filter(channel => channel.length > 0);
+
+if (channels.length === 0) {
+    console.error("No Twitch channels found. Set TWITCH_CHANNELS in Render Environment.");
+    process.exit(1);
+}
 
 const client = new tmi.Client({
     identity: {
@@ -48,7 +54,7 @@ function getRandomPokemon() {
     return pokemonList[randomIndex];
 }
 
-function startNewRound(channel) {
+function startNewRound(replyChannel) {
     currentPokemon = getRandomPokemon();
     io.emit("newPokemon", currentPokemon);
     gameActive = true;
@@ -61,15 +67,17 @@ client.on("message", async (channel, tags, message, self) => {
 
     const msg = message.toLowerCase().trim();
     const username = tags["display-name"];
+    const replyChannel = channel.replace("#", "");
+        console.log(`Message received in: ${replyChannel}`);
 
     if (msg === "!wtpstart") {
         if (gameActive) {
-            client.say(channel, "A Pokémon round is already active! Guess the Pokémon!");
+            client.say(replyChannel, "A Pokémon round is already active! Guess the Pokémon!");
             return;
         }
 
         startNewRound(channel);
-            client.say(channel, "Who's That Pokémon? Guess now in chat!");
+            client.say(replyChannel,, "Who's That Pokémon? Guess now in chat!");
         return;
     }
 
@@ -77,22 +85,23 @@ client.on("message", async (channel, tags, message, self) => {
         gameActive = false;
         currentPokemon = null;
         io.emit("clearPokemon");
-        client.say(channel, "Who's That Pokémon has been stopped.");
+        client.say(replyChannel, "Who's That Pokémon has been stopped.");
         return;
     }
 
     if (msg === "!wtpskip") {
         if (!gameActive || !currentPokemon) {
-            client.say(channel, "There is no active Pokémon round.");
+            client.say(replyChannel, "There is no active Pokémon round.");
             return;
         }
 
-        client.say(
-        channel,
+        client.say(replyChannel,
         `Pokémon skipped! It was ${currentPokemon.displayName}. The next Pokémon will appear in 5 seconds...`
         );
-        io.emit("revealPokemon", currentPokemon);
-
+        io.emit("revealPokemon", {
+            ...currentPokemon,
+            skipped: true
+        });
         gameActive = false;
 
         setTimeout(() => {
@@ -104,8 +113,7 @@ client.on("message", async (channel, tags, message, self) => {
 
     if (gameActive && currentPokemon) {
         if (msg === currentPokemon.name) {
-            client.say(
-            channel,
+            client.say(replyChannel,
             `${username} guessed correctly! It was ${currentPokemon.displayName}! The next Pokémon will appear in 5 seconds...`
             );
             
