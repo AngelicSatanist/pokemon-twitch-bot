@@ -77,7 +77,7 @@ client.on("message", async (channel, tags, message, self) => {
         }
 
         startNewRound(channel);
-            client.say(replyChannel,, "Who's That Pokémon? Guess now in chat!");
+            client.say(replyChannel, "Who's That Pokémon? Guess now in chat!");
         return;
     }
 
