@@ -7,14 +7,14 @@
             margin: 0;
             background: transparent;
             font-family: Arial, sans-serif;
-            color: white;
+            color: black;
             text-align: center;
             overflow: hidden;
         }
 
         #title {
             font-size: 52px;
-            text-shadow: 3px 3px 6px black;
+            text-shadow: 5px 5px 8px white;
             margin-top: 40px;
         }
 
@@ -23,11 +23,16 @@
             height: auto;
             display: none;
             margin: 20px auto 0 auto;
-            filter: brightness(0);
-        }
+            filter:
+               brightness(0)
+                drop-shadow(0 0 4px white)
+                drop-shadow(0 0 8px white)
+                drop-shadow(0 0 16px white);
+}
 
         #pokemon.revealed {
-            filter: none;
+            filter:
+                drop-shadow(0 0 6px white);
         }
 
         #winner {
