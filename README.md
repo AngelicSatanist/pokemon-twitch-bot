@@ -6,12 +6,14 @@ A NOTE:
 FOR MY STINKY FRIENDS WHO WANNA USE THISSSS
 reach out to me on discord @angelicsatanist if you havent already and I will add you to my code <3
 
-STEP 1, MOD THE BOT (/mod AngelsPokebot). Type !pokemon in your chat to start the bot whenever you are ready
+STEP 1, MOD THE BOT (/mod AngelsPokebot). Type !wtpstart in your chat to start the bot whenever you are ready
 
 STEP 2, Visit https://pokemon-twitch-bot.onrender.com to see the pokemon as they spawn in. THIS WILL ALSO BE YOUR OBS SOURCE (browser)!!
 
 LAST commands!!
 
-!wtpstart to start
+!wtpstart to start 
+
 !wtpskip to skip the pokemon
+
 !wtpstop to stop the bot
