@@ -62,11 +62,16 @@
             winner.style.display = "none";
             winner.textContent = "";
         });
-
         socket.on("revealPokemon", (pokemon) => {
             img.classList.add("revealed");
             title.textContent = `It's ${pokemon.displayName}!`;
-            winner.textContent = `${pokemon.winner} guessed correctly!`;
+
+            if (pokemon.winner) {
+                winner.textContent = `🎉 ${pokemon.winner} guessed correctly!`;
+            } else {
+                winner.textContent = "⏭️ Round skipped!";
+            }
+
             winner.style.display = "block";
         });
         socket.on("clearPokemon", () => {
