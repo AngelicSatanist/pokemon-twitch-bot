@@ -12,6 +12,6 @@ STEP 2, Visit https://pokemon-twitch-bot.onrender.com to see the pokemon as they
 
 LAST commands!!
 
-!pokemon to start
-!skip to skip the pokemon
-!stop to stop the bot
+!wtpstart to start
+!wtpskip to skip the pokemon
+!wtpstop to stop the bot

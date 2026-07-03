@@ -58,7 +58,7 @@ client.on("message", async (channel, tags, message, self) => {
     const msg = message.toLowerCase().trim();
     const username = tags["display-name"];
 
-    if (msg === "!pokemon") {
+    if (msg === "!wtpstart") {
         if (gameActive) {
             client.say(channel, "A Pokémon round is already active! Guess the Pokémon!");
             return;
@@ -69,7 +69,7 @@ client.on("message", async (channel, tags, message, self) => {
         return;
     }
 
-    if (msg === "!stop") {
+    if (msg === "!wtpstop") {
         gameActive = false;
         currentPokemon = null;
         io.emit("clearPokemon");
@@ -77,7 +77,7 @@ client.on("message", async (channel, tags, message, self) => {
         return;
     }
 
-    if (msg === "!skip") {
+    if (msg === "!wtpskip") {
         if (!gameActive || !currentPokemon) {
             client.say(channel, "There is no active Pokémon round.");
             return;
