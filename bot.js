@@ -37,7 +37,7 @@ client.connect();
 
 client.on("connected", () => {
     console.log("Bot connected!");
-    client.say(process.env.TWITCH_CHANNEL, "🤖 Who's That Pokémon bot is online!");
+    client.say(process.env.TWITCH_CHANNEL, "Angel's Who's That Pokémon bot is online!");
 });
 
 function getRandomPokemon() {
@@ -52,7 +52,7 @@ function startNewRound(channel) {
 
     console.log("New round:", currentPokemon);
 
-    client.say(channel, "🕵️ Who's That Pokémon? Guess in chat!");
+    client.say(channel, "Who's That Pokémon? Guess now in chat!");
 }
 
 client.on("message", async (channel, tags, message, self) => {
