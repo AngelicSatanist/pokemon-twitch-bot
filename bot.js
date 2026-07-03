@@ -75,7 +75,7 @@ client.on("message", async (channel, tags, message, self) => {
         gameActive = false;
         currentPokemon = null;
         io.emit("clearPokemon");
-        client.say(channel, "🛑 Who's That Pokémon has been stopped.");
+        client.say(channel, "Angel's Who's That Pokémon has been stopped.");
         return;
     }
 
@@ -85,7 +85,7 @@ client.on("message", async (channel, tags, message, self) => {
             return;
         }
 
-        client.say(channel, `⏭️ Skipped! It was ${currentPokemon.displayName}.`);
+        client.say(channel, `Pokémon Skipped! It was ${currentPokemon.displayName}.`);
         io.emit("revealPokemon", currentPokemon);
 
         gameActive = false;
@@ -100,7 +100,10 @@ client.on("message", async (channel, tags, message, self) => {
     if (gameActive && currentPokemon) {
         if (msg === currentPokemon.name) {
             client.say(channel, `🎉 ${username} got it! It was ${currentPokemon.displayName}!`);
-            io.emit("revealPokemon", currentPokemon);
+            io.emit("revealPokemon", {
+                  ...currentPokemon,
+                 winner: username
+            });
 
             gameActive = false;
 

@@ -29,17 +29,29 @@
         #pokemon.revealed {
             filter: none;
         }
+
+        #winner {
+            display: none;
+            margin-top: 20px;
+            font-size: 40px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 3px 3px 6px black;
+        }
+
     </style>
 </head>
 <body>
     <h1 id="title">Who's That Pokémon?</h1>
     <img id="pokemon" src="" alt="Pokemon silhouette">
+    <div id="winner"></div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
         const img = document.getElementById("pokemon");
         const title = document.getElementById("title");
+        const winner = document.getElementById("winner");
 
         socket.on("newPokemon", (pokemon) => {
             console.log("New Pokémon received:", pokemon);
@@ -47,16 +59,22 @@
             img.classList.remove("revealed");
             img.style.display = "block";
             title.textContent = "Who's That Pokémon?";
+            winner.style.display = "none";
+            winner.textContent = "";
         });
 
         socket.on("revealPokemon", (pokemon) => {
             img.classList.add("revealed");
             title.textContent = `It's ${pokemon.displayName}!`;
+            winner.textContent = `${pokemon.winner} guessed correctly!`;
+            winner.style.display = "block";
         });
         socket.on("clearPokemon", () => {
             img.style.display = "none";
             img.classList.remove("revealed");
             title.textContent = "Who's That Pokémon?";
+            winner.style.display = "none";
+            winner.textContent = "";
         });
     </script>
 </body>
