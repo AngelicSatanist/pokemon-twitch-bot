@@ -25,18 +25,22 @@ server.listen(PORT, () => {
     console.log(`Overlay running on port ${PORT}`);
 });
 
+const channels = process.env.TWITCH_CHANNELS
+    .split(",")
+    .map(channel => channel.trim().toLowerCase());
+
 const client = new tmi.Client({
     identity: {
         username: process.env.TWITCH_USERNAME,
         password: process.env.TWITCH_OAUTH
     },
-    channels: [process.env.TWITCH_CHANNEL]
+    channels: channels
 });
 
 client.connect();
 
 client.on("connected", () => {
-    console.log("Bot connected!");
+    console.log("Bot connected to:", channels);
 });
 
 function getRandomPokemon() {
