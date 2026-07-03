@@ -50,8 +50,6 @@ function startNewRound(channel) {
     gameActive = true;
 
     console.log("New round:", currentPokemon);
-
-    client.say(channel, "Who's That Pokémon? Guess now in chat!");
 }
 
 client.on("message", async (channel, tags, message, self) => {
@@ -67,6 +65,7 @@ client.on("message", async (channel, tags, message, self) => {
         }
 
         startNewRound(channel);
+            client.say(channel, "Who's That Pokémon? Guess now in chat!");
         return;
     }
 
@@ -84,7 +83,10 @@ client.on("message", async (channel, tags, message, self) => {
             return;
         }
 
-        client.say(channel, `Pokémon Skipped! It was ${currentPokemon.displayName}.`);
+        client.say(
+        channel,
+        `Pokémon skipped! It was ${currentPokemon.displayName}. The next Pokémon will appear in 5 seconds...`
+        );
         io.emit("revealPokemon", currentPokemon);
 
         gameActive = false;
@@ -98,7 +100,11 @@ client.on("message", async (channel, tags, message, self) => {
 
     if (gameActive && currentPokemon) {
         if (msg === currentPokemon.name) {
-            client.say(channel, `🎉 ${username} got it! It was ${currentPokemon.displayName}!`);
+            client.say(
+            channel,
+            `🎉 ${username} guessed correctly! It was ${currentPokemon.displayName}! The next Pokémon will appear in 5 seconds...`
+            );
+            
             io.emit("revealPokemon", {
                   ...currentPokemon,
                  winner: username
