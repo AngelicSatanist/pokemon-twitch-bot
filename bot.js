@@ -76,7 +76,7 @@ client.on("message", async (channel, tags, message, self) => {
             return;
         }
 
-        startNewRound(channel);
+        startNewRound(replyChannel);
             client.say(replyChannel, "Who's That Pokémon? Guess now in chat!");
         return;
     }
@@ -105,7 +105,7 @@ client.on("message", async (channel, tags, message, self) => {
         gameActive = false;
 
         setTimeout(() => {
-            startNewRound(channel);
+            startNewRound(replyChannel);
         }, 5000);
 
         return;
@@ -125,7 +125,7 @@ client.on("message", async (channel, tags, message, self) => {
             gameActive = false;
 
             setTimeout(() => {
-                startNewRound(channel);
+                startNewRound(replyChannel);
             }, 5000);
 
             return;
