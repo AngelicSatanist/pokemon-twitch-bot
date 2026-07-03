@@ -19,8 +19,10 @@ const io = new Server(server);
 app.use(express.static("overlay"));
 app.use("/artwork", express.static(path.join(__dirname, "images", "artwork")));
 
-server.listen(3000, () => {
-    console.log("Overlay running at http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+
+server.listen(PORT, () => {
+    console.log(`Overlay running on port ${PORT}`);
 });
 
 const client = new tmi.Client({
