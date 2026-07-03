@@ -102,7 +102,7 @@ client.on("message", async (channel, tags, message, self) => {
         if (msg === currentPokemon.name) {
             client.say(
             channel,
-            `🎉 ${username} guessed correctly! It was ${currentPokemon.displayName}! The next Pokémon will appear in 5 seconds...`
+            `${username} guessed correctly! It was ${currentPokemon.displayName}! The next Pokémon will appear in 5 seconds...`
             );
             
             io.emit("revealPokemon", {
