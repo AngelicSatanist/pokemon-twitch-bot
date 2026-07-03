@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Angel's Who's that pokemon</title>
+    <style>
+        body {
+            margin: 0;
+            background: transparent;
+            font-family: Arial, sans-serif;
+            color: white;
+            text-align: center;
+            overflow: hidden;
+        }
+
+        #title {
+            font-size: 52px;
+            text-shadow: 3px 3px 6px black;
+            margin-top: 40px;
+        }
+
+        #pokemon {
+            width: 450px;
+            height: auto;
+            display: none;
+            margin: 20px auto 0 auto;
+            filter: brightness(0);
+        }
+
+        #pokemon.revealed {
+            filter: none;
+        }
+    </style>
+</head>
+<body>
+    <h1 id="title">Who's That Pokémon?</h1>
+    <img id="pokemon" src="" alt="Pokemon silhouette">
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const img = document.getElementById("pokemon");
+        const title = document.getElementById("title");
+
+        socket.on("newPokemon", (pokemon) => {
+            console.log("New Pokémon received:", pokemon);
+            img.src = pokemon.image;
+            img.classList.remove("revealed");
+            img.style.display = "block";
+            title.textContent = "Who's That Pokémon?";
+        });
+
+        socket.on("revealPokemon", (pokemon) => {
+            img.classList.add("revealed");
+            title.textContent = `It's ${pokemon.displayName}!`;
+        });
+        socket.on("clearPokemon", () => {
+            img.style.display = "none";
+            img.classList.remove("revealed");
+            title.textContent = "Who's That Pokémon?";
+        });
+    </script>
+</body>
+</html>
