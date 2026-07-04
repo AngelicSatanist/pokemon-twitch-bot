@@ -23,6 +23,26 @@ const io = new Server(server);
 app.use(express.static("overlay"));
 app.use("/artwork", express.static(path.join(__dirname, "images", "artwork")));
 
+app.get("/theme/:channel", async (req, res) => {
+    const channel = req.params.channel.toLowerCase();
+
+    const response = await fetch(
+        `${process.env.SUPABASE_URL}/rest/v1/channels?select=overlay_theme&channel_name=eq.${channel}`,
+        {
+            headers: {
+                apikey: process.env.SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${process.env.SUPABASE_ANON_KEY}`
+            }
+        }
+    );
+
+    const data = await response.json();
+
+    res.json({
+        theme: data[0]?.overlay_theme || "default"
+    });
+});
+
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {

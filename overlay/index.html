@@ -59,6 +59,42 @@
             margin-top: 20px;
             font-size: 40px;
         }
+
+        body.theme-default {
+            background: transparent;
+        }
+
+        body.theme-dark-glow #title,
+        body.theme-dark-glow #winner {
+            color: white;
+            text-shadow:
+                0 0 6px black,
+                0 0 12px black,
+                0 0 20px white;
+        }   
+
+        body.theme-pink-bedroom #title,
+        body.theme-pink-bedroom #winner {
+            color: white;
+            text-shadow:
+                -2px -2px 0 #000,
+                2px 2px 0 #000,
+                0 0 12px hotpink,
+                0 0 24px pink;
+        }
+
+        body.theme-retro-pokedex #title,
+        body.theme-retro-pokedex #winner {
+            color: white;
+            text-shadow:
+                3px 3px 0 black,
+                6px 6px 0 rgba(0,0,0,0.7);
+        }
+
+        body.theme-cute-stars {
+            color: white;
+        }
+
     </style>
 </head>
 
@@ -71,6 +107,21 @@
     <script>
         const params = new URLSearchParams(window.location.search);
         const channel = params.get("channel");
+
+        let currentTheme = "default";
+
+        async function loadTheme() {
+            if (!channel) return;
+
+        const response = await fetch(`/theme/${channel}`);
+        const data = await response.json();
+
+        currentTheme = data.theme || "default";
+            document.body.className = "";
+            document.body.classList.add(`theme-${currentTheme.replace("_", "-")}`);
+        }
+
+        loadTheme();
 
         const socket = io({
             query: { channel }
