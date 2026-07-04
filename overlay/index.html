@@ -68,7 +68,15 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io();
+        const params = new URLSearchParams(window.location.search);
+        const channel = params.get("channel");
+
+        const socket = io({
+            query: {
+                channel: channel
+            }
+        });
+        
         const img = document.getElementById("pokemon");
         const title = document.getElementById("title");
         const winner = document.getElementById("winner");
