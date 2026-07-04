@@ -11,6 +11,13 @@ const pokemonList = require("./data/pokemon.json");
 
 const games = {};
 
+const { createClient } = require("@supabase/supabase-js");
+
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY
+);
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
@@ -24,104 +31,127 @@ server.listen(PORT, () => {
     console.log(`Overlay running on port ${PORT}`);
 });
 
-const channels = (process.env.TWITCH_CHANNELS || process.env.TWITCH_CHANNEL || "")
-    .split(",")
-    .map(channel => channel.trim().toLowerCase())
-    .filter(channel => channel.length > 0);
+async function loadChannelsFromSupabase() {
+    const { data, error } = await supabase
+        .from("channels")
+        .select("channel_name")
+        .eq("enabled", true);
 
-if (channels.length === 0) {
-    console.error("No Twitch channels found. Set TWITCH_CHANNELS in Render Environment.");
-    process.exit(1);
+    if (error) {
+        console.error("Supabase channel load error:", error);
+        return [];
+    }
+
+    return data.map(row => row.channel_name.toLowerCase());
 }
 
-const client = new tmi.Client({
-    identity: {
-        username: process.env.TWITCH_USERNAME,
-        password: process.env.TWITCH_OAUTH
-    },
-    channels: channels
-});
+let client;
 
-client.connect();
+function getGame(channel) {
+    if (!games[channel]) {
+        games[channel] = {
+            currentPokemon: null,
+            gameActive: false
+        };
+    }
 
-client.on("connected", () => {
-    console.log("Bot connected to:", channels);
-});
+    return games[channel];
+}
 
 function getRandomPokemon() {
     const randomIndex = Math.floor(Math.random() * pokemonList.length);
     return pokemonList[randomIndex];
 }
 
-function startNewRound(replyChannel) {
-    currentPokemon = getRandomPokemon();
-    io.emit("newPokemon", currentPokemon);
-    gameActive = true;
+function startNewRound(channel) {
+    const game = getGame(channel);
 
-    console.log("New round:", currentPokemon);
+    game.currentPokemon = getRandomPokemon();
+    game.gameActive = true;
+
+    io.to(channel).emit("newPokemon", game.currentPokemon);
+
+    console.log(`New round for ${channel}:`, game.currentPokemon.displayName);
 }
 
-client.on("message", async (channel, tags, message, self) => {
-    if (self) return;
+io.on("connection", (socket) => {
+    const channel = socket.handshake.query.channel;
 
-    const msg = message.toLowerCase().trim();
-    const username = tags["display-name"];
-    const replyChannel = channel.replace("#", "");
+    if (channel) {
+        const cleanChannel = channel.toLowerCase();
+        socket.join(cleanChannel);
+        console.log(`Overlay connected for ${cleanChannel}`);
+    }
+});
+
+async function startBot() {
+    const channels = await loadChannelsFromSupabase();
+
+    if (channels.length === 0) {
+        console.error("No enabled channels found in Supabase.");
+        process.exit(1);
+    }
+
+    client = new tmi.Client({
+        identity: {
+            username: process.env.TWITCH_USERNAME,
+            password: process.env.TWITCH_OAUTH
+        },
+        channels: channels
+    });
+
+    client.connect();
+
+    client.on("connected", () => {
+        console.log("Bot connected to:", channels);
+    });
+
+    client.on("message", async (channel, tags, message, self) => {
+        if (self) return;
+
+        const msg = message.toLowerCase().trim();
+        const username = tags["display-name"];
+        const replyChannel = channel.replace("#", "").toLowerCase();
+        const game = getGame(replyChannel);
+
         console.log(`Message received in: ${replyChannel}`);
 
-    if (msg === "!wtpstart") {
-        if (gameActive) {
-            client.say(replyChannel, "A Pokémon round is already active! Guess the Pokémon!");
-            return;
-        }
+        if (msg === "!wtpstart") {
+            if (game.gameActive) {
+                client.say(replyChannel, "A Pokémon round is already active! Guess the Pokémon!");
+                return;
+            }
 
-        startNewRound(replyChannel);
-            client.say(replyChannel, "Who's That Pokémon? Guess now in chat!");
-        return;
-    }
-
-    if (msg === "!wtpstop") {
-        gameActive = false;
-        currentPokemon = null;
-        io.emit("clearPokemon");
-        client.say(replyChannel, "Who's That Pokémon has been stopped.");
-        return;
-    }
-
-    if (msg === "!wtpskip") {
-        if (!gameActive || !currentPokemon) {
-            client.say(replyChannel, "There is no active Pokémon round.");
-            return;
-        }
-
-        client.say(replyChannel,
-        `Pokémon skipped! It was ${currentPokemon.displayName}. The next Pokémon will appear in 5 seconds...`
-        );
-        io.emit("revealPokemon", {
-            ...currentPokemon,
-            skipped: true
-        });
-        gameActive = false;
-
-        setTimeout(() => {
             startNewRound(replyChannel);
-        }, 5000);
+            client.say(replyChannel, "Who's That Pokémon? Guess now in chat!");
+            return;
+        }
 
-        return;
-    }
+        if (msg === "!wtpstop") {
+            game.gameActive = false;
+            game.currentPokemon = null;
+            io.to(replyChannel).emit("clearPokemon");
+            client.say(replyChannel, "Who's That Pokémon has been stopped.");
+            return;
+        }
 
-    if (gameActive && currentPokemon) {
-        if (msg === currentPokemon.name) {
-            client.say(replyChannel,
-            `${username} guessed correctly! It was ${currentPokemon.displayName}! The next Pokémon will appear in 5 seconds...`
+        if (msg === "!wtpskip") {
+            if (!game.gameActive || !game.currentPokemon) {
+                client.say(replyChannel, "There is no active Pokémon round.");
+                return;
+            }
+
+            client.say(
+                replyChannel,
+                `Pokémon skipped! It was ${game.currentPokemon.displayName}. The next Pokémon will appear in 5 seconds...`
             );
-            
-            io.emit("revealPokemon", {
-                  ...currentPokemon,
-                 winner: username
+
+            io.to(replyChannel).emit("revealPokemon", {
+                ...game.currentPokemon,
+                skipped: true
             });
 
-            gameActive = false;
+            game.gameActive = false;
 
             setTimeout(() => {
                 startNewRound(replyChannel);
@@ -129,5 +159,29 @@ client.on("message", async (channel, tags, message, self) => {
 
             return;
         }
-    }
-});
+
+        if (game.gameActive && game.currentPokemon) {
+            if (msg === game.currentPokemon.name) {
+                client.say(
+                    replyChannel,
+                    `${username} guessed correctly! It was ${game.currentPokemon.displayName}! The next Pokémon will appear in 5 seconds...`
+                );
+
+                io.to(replyChannel).emit("revealPokemon", {
+                    ...game.currentPokemon,
+                    winner: username
+                });
+
+                game.gameActive = false;
+
+                setTimeout(() => {
+                    startNewRound(replyChannel);
+                }, 5000);
+
+                return;
+            }
+        }
+    });
+}
+
+startBot();
