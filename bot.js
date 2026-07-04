@@ -19,6 +19,9 @@ const supabase = createClient(
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+app.get("/", (req, res) => {
+    res.redirect("/?channel=arandii_");
+});
 
 app.use(express.static("overlay"));
 app.use("/artwork", express.static(path.join(__dirname, "images", "artwork")));
