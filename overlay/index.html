@@ -106,7 +106,9 @@
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const params = new URLSearchParams(window.location.search);
-        const channel = params.get("channel");
+
+        // Default to your friend's channel if no channel is provided
+        const channel = params.get("channel") || "arandii_";
 
         let currentTheme = "default";
 
