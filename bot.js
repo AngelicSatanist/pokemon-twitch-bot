@@ -46,6 +46,16 @@ app.get("/theme/:channel", async (req, res) => {
     });
 });
 
+app.get("/game/:channel", (req, res) => {
+    const channel = req.params.channel.toLowerCase();
+    const game = getGame(channel);
+
+    res.json({
+        active: game.gameActive,
+        pokemon: game.currentPokemon
+    });
+});
+
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
@@ -114,8 +124,25 @@ io.on("connection", (socket) => {
         const cleanChannel = channel.toLowerCase();
         socket.join(cleanChannel);
         console.log(`Overlay connected for ${cleanChannel}`);
+
+        const game = getGame(cleanChannel);
+
+        if (game.gameActive && game.currentPokemon) {
+            socket.emit("newPokemon", game.currentPokemon);
+        }
     }
 });
+
+if (msg === "!wtprefresh") {
+                const game = getGame(replyChannel);
+
+                if (game.gameActive && game.currentPokemon) {
+                    io.to(replyChannel).emit("newPokemon", game.currentPokemon);
+                    client.say(replyChannel, "Overlay refreshed.");
+                }
+
+                return;
+            }
 
 async function startBot() {
     const channels = await loadChannelsFromSupabase();
@@ -214,16 +241,7 @@ async function startBot() {
                 return;
             }
 
-            if (msg === "!wtprefresh") {
-                const game = getGame(replyChannel);
-
-                if (game.gameActive && game.currentPokemon) {
-                    io.to(replyChannel).emit("newPokemon", game.currentPokemon);
-                    client.say(replyChannel, "Overlay refreshed.");
-                }
-
-                return;
-            }
+            
         }
     });
 }

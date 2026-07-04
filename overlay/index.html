@@ -164,6 +164,24 @@
             winner.style.display = "none";
             winner.textContent = "";
         });
+
+        async function syncGameState() {
+            if (!channel) return;
+
+            const response = await fetch(`/game/${channel}`);
+            const data = await response.json();
+
+            if (data.active && data.pokemon) {
+                img.src = data.pokemon.image;
+                img.classList.remove("revealed");
+                img.style.display = "block";
+                title.textContent = "Who's That Pokémon?";
+            }
+        }
+
+        setInterval(syncGameState, 5000);
+        syncGameState();
+
     </script>
 </body>
 </html>
