@@ -9,8 +9,7 @@ const fs = require("fs");
 const path = require("path");
 const pokemonList = require("./data/pokemon.json");
 
-let currentPokemon = null;
-let gameActive = false;
+const games = {};
 
 const app = express();
 const server = http.createServer(app);
