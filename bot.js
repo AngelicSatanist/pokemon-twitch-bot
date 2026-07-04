@@ -133,17 +133,6 @@ io.on("connection", (socket) => {
     }
 });
 
-if (msg === "!wtprefresh") {
-                const game = getGame(replyChannel);
-
-                if (game.gameActive && game.currentPokemon) {
-                    io.to(replyChannel).emit("newPokemon", game.currentPokemon);
-                    client.say(replyChannel, "Overlay refreshed.");
-                }
-
-                return;
-            }
-
 async function startBot() {
     const channels = await loadChannelsFromSupabase();
 
@@ -216,6 +205,17 @@ async function startBot() {
             setTimeout(() => {
                 startNewRound(replyChannel);
             }, 5000);
+
+            return;
+        }
+
+        if (msg === "!wtprefresh") {
+            if (game.gameActive && game.currentPokemon) {
+                io.to(replyChannel).emit("newPokemon", game.currentPokemon);
+                client.say(replyChannel, "Overlay refreshed.");
+            } else {
+            client.say(replyChannel, "There is no active Pokémon round to refresh.");
+             }
 
             return;
         }
