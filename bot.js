@@ -30,15 +30,27 @@ server.listen(PORT, () => {
 });
 
 async function loadChannelsFromSupabase() {
-    const { data, error } = await supabase
-        .from("channels")
-        .select("channel_name")
-        .eq("enabled", true);
+    const supabaseUrl = process.env.SUPABASE_URL.trim();
+    const supabaseKey = process.env.SUPABASE_ANON_KEY.trim();
 
-    if (error) {
-        console.error("Supabase channel load error:", error);
+    const url = `${supabaseUrl}/rest/v1/channels?select=channel_name&enabled=eq.true`;
+
+    console.log("Loading channels from:", url);
+
+    const response = await fetch(url, {
+        headers: {
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`
+        }
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Supabase REST error:", response.status, errorText);
         return [];
     }
+
+    const data = await response.json();
 
     return data.map(row => row.channel_name.toLowerCase());
 }
