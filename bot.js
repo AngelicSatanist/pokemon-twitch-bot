@@ -20,7 +20,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 app.get("/", (req, res) => {
-    res.redirect("/?channel=arandii_");
+    res.sendFile(path.join(__dirname, "overlay", "index.html"));
 });
 
 app.use(express.static("overlay"));
