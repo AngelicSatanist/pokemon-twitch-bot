@@ -1,33 +1,39 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <link href="https://fonts.googleapis.com/css?family=Luckiest Guy" rel="stylesheet">
-    <title>Angel's Who's that pokemon</title>
+    <meta charset="UTF-8">
+    <title>Angel's Who's That Pokémon</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" rel="stylesheet">
+
     <style>
         body {
             margin: 0;
             background: transparent;
-            font-family: 'Luckiest Guy';font-size: 22px;
+            font-family: 'Luckiest Guy', cursive;
             color: white;
             text-align: center;
             overflow: hidden;
+        }
+
+        #title,
+        #winner {
             text-shadow:
                 -2px -2px 0 #000,
-                2px -2px 0 #000,
+                 2px -2px 0 #000,
                 -2px  2px 0 #000,
-                2px  2px 0 #000,
+                 2px  2px 0 #000,
                 -3px  0px 0 #000,
-                3px  0px 0 #000,
-                0px -3px 0 #000,
-                0px  3px 0 #000,
-                6px 6px 12px rgba(0,0,0,0.9);
+                 3px  0px 0 #000,
+                 0px -3px 0 #000,
+                 0px  3px 0 #000,
+                 6px  6px 12px rgba(0, 0, 0, 0.9);
         }
 
         #title {
             font-size: 75px;
             margin-top: 40px;
-            
-         }
+        }
 
         #pokemon {
             width: 450px;
@@ -35,15 +41,13 @@
             display: none;
             margin: 20px auto 0 auto;
             filter:
-               brightness(0)
+                brightness(0)
                 drop-shadow(0 0 4px white)
                 drop-shadow(0 0 8px white)
                 drop-shadow(0 0 16px white);
-}
+        }
 
         #pokemon.revealed {
-            width: 450px;
-            height: auto;
             filter:
                 drop-shadow(0 0 4px white)
                 drop-shadow(0 0 8px white)
@@ -54,16 +58,13 @@
             display: none;
             margin-top: 20px;
             font-size: 40px;
-            font-weight: bold;
-            color: white;
-            text-shadow: 3px 3px 6px black;
         }
-
     </style>
 </head>
+
 <body>
     <h1 id="title">Who's That Pokémon?</h1>
-    <img id="pokemon" src="" alt="Pokemon silhouette">
+    <img id="pokemon" src="" alt="Pokémon silhouette">
     <div id="winner"></div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -72,39 +73,40 @@
         const channel = params.get("channel");
 
         const socket = io({
-            query: {
-                channel: channel
-            }
+            query: { channel }
         });
-        
+
         const img = document.getElementById("pokemon");
         const title = document.getElementById("title");
         const winner = document.getElementById("winner");
 
         socket.on("newPokemon", (pokemon) => {
-            console.log("New Pokémon received:", pokemon);
             img.src = pokemon.image;
             img.classList.remove("revealed");
             img.style.display = "block";
+
             title.textContent = "Who's That Pokémon?";
             winner.style.display = "none";
             winner.textContent = "";
         });
+
         socket.on("revealPokemon", (pokemon) => {
             img.classList.add("revealed");
             title.textContent = `It's ${pokemon.displayName}!`;
 
-            if (pokemon.winner) {
-                winner.textContent = `${pokemon.winner} guessed correctly!`;
-            } else {
+            if (pokemon.skipped) {
                 winner.textContent = "Round skipped!";
+            } else {
+                winner.textContent = `${pokemon.winner} guessed correctly!`;
             }
 
             winner.style.display = "block";
         });
+
         socket.on("clearPokemon", () => {
             img.style.display = "none";
             img.classList.remove("revealed");
+
             title.textContent = "Who's That Pokémon?";
             winner.style.display = "none";
             winner.textContent = "";
