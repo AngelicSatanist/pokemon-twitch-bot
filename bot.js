@@ -4,8 +4,6 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const tmi = require("tmi.js");
-const axios = require("axios");
-const fs = require("fs");
 const path = require("path");
 const pokemonList = require("./data/pokemon.json");
 
