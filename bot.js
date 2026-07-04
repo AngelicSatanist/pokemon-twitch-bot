@@ -210,6 +210,17 @@ async function startBot() {
 
                 return;
             }
+
+            if (msg === "!wtprefresh") {
+                const game = getGame(replyChannel);
+
+                if (game.gameActive && game.currentPokemon) {
+                    io.to(replyChannel).emit("newPokemon", game.currentPokemon);
+                    client.say(replyChannel, "Overlay refreshed.");
+                }
+
+                return;
+            }
         }
     });
 }
