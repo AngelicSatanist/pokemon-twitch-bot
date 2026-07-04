@@ -39,12 +39,31 @@ async function main() {
         const response = await axios.get(apiUrl);
         const pokemon = response.data;
 
+        const speciesResponse = await axios.get(
+             `https://pokeapi.co/api/v2/pokemon-species/${pokemon.id}`
+        );
+
+        const species = speciesResponse.data;
+
+        const entry = species.flavor_text_entries.find(
+              e => e.language.name === "en"
+        );
+
+        const pokedexEntry = entry
+            ? entry.flavor_text
+                .replace(/\f/g, " ")
+                .replace(/\n/g, " ")
+                .replace(/\s+/g, " ")
+                .trim()
+            : "No Pokédex entry available.";
+
         pokemonList.push({
             id,
             number: paddedId,
             name: pokemon.name,
             displayName: pokemon.name.charAt(0).toUpperCase() + pokemon.name.slice(1),
-            image: `/artwork/${paddedId}.png`
+            image: `/artwork/${paddedId}.png`,
+            pokedexEntry
         });
 
         const imagePath = path.join(artworkFolder, `${paddedId}.png`);
