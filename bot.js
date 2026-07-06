@@ -131,6 +131,7 @@ async function loadChannelsFromSupabase() {
 }
 
 let client;
+let joinedChannels = new Set();
 
 function getGame(channel) {
     if (!games[channel]) {
@@ -194,7 +195,8 @@ async function startBot() {
     client.connect();
 
     client.on("connected", () => {
-        console.log("Bot connected to:", channels);
+        channels.forEach(channel => joinedChannels.add(channel));
+        console.log("Bot connected to:", [...joinedChannels]);
     });
 
     client.on("message", async (channel, tags, message, self) => {
@@ -206,6 +208,23 @@ async function startBot() {
         const game = getGame(replyChannel);
 
         console.log(`Message received in: ${replyChannel}`);
+
+        if (msg === "!reloadchannels") {
+
+            // Only you can use it
+            if (replyChannel !== "angelicsatanist") {
+                return;
+            }
+
+            await reloadChannels();
+
+            client.say(
+                replyChannel,
+                `✅ Channel list reloaded! Currently connected to ${joinedChannels.size} channels.`
+            );
+
+            return;
+            }
 
         if (msg === "!wtpstart") {
             if (game.gameActive) {
@@ -286,6 +305,39 @@ async function startBot() {
             
         }
     });
+}
+async function reloadChannels() {
+    const latestChannels = await loadChannelsFromSupabase();
+
+    // Join new channels
+    for (const channel of latestChannels) {
+        if (!joinedChannels.has(channel)) {
+            try {
+                await client.join(channel);
+                joinedChannels.add(channel);
+                console.log(`Joined ${channel}`);
+            } catch (err) {
+                console.error(`Couldn't join ${channel}:`, err);
+            }
+        }
+    }
+
+    // Leave disabled channels
+    for (const channel of [...joinedChannels]) {
+        if (!latestChannels.includes(channel)) {
+            try {
+                await client.part(channel);
+                joinedChannels.delete(channel);
+                console.log(`Left ${channel}`);
+            } catch (err) {
+                console.error(`Couldn't leave ${channel}:`, err);
+            }
+        }
+    }
+
+    return {
+        joined: [...joinedChannels]
+    };
 }
 
 startBot();
