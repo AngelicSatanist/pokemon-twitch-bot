@@ -46,6 +46,48 @@ app.get("/theme/:channel", async (req, res) => {
     });
 });
 
+app.use(express.json());
+
+app.post("/add-channel", async (req, res) => {
+    const channelName = req.body.channelName?.toLowerCase().trim();
+
+    if (!channelName) {
+        return res.status(400).json({ error: "Channel name is required." });
+    }
+
+    const cleanChannel = channelName.replace("@", "");
+
+    const response = await fetch(
+        `${process.env.SUPABASE_URL}/rest/v1/channels`,
+        {
+            method: "POST",
+            headers: {
+                apikey: process.env.SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${process.env.SUPABASE_ANON_KEY}`,
+                "Content-Type": "application/json",
+                Prefer: "resolution=merge-duplicates"
+            },
+            body: JSON.stringify({
+                channel_name: cleanChannel,
+                enabled: true,
+                overlay_theme: "default",
+                points_enabled: false
+            })
+        }
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        return res.status(500).json({ error: errorText });
+    }
+
+    res.json({
+        success: true,
+        channelName: cleanChannel,
+        overlayUrl: `https://pokemon-twitch-bot.onrender.com/?channel=${cleanChannel}`
+    });
+});
+
 app.get("/game/:channel", (req, res) => {
     const channel = req.params.channel.toLowerCase();
     const game = getGame(channel);
