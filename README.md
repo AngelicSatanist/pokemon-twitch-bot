@@ -2,15 +2,22 @@
 
 A Twitch chat bot and OBS overlay for playing "Who's That Pokemon" developed by AngelicSatanist
 
-A NOTE:
-FOR MY STINKY FRIENDS WHO WANNA USE THISSSS
-reach out to me on discord @angelicsatanist if you havent already and I will add you to my code <3
+A lil bit about the bot. I am Angel and this bot has been a little bit of a passion project for me, my goal was to create an entirely free bot that is able to run the classic "Who's that Pokemon" from the good old days. 
 
-STEP 1, MOD THE BOT (/mod AngelsPokebot). Type !wtpstart in your chat to start the bot whenever you are ready
+GETTING STARTED
 
-STEP 2, Visit https://pokemon-twitch-bot.onrender.com to see the pokemon as they spawn in. THIS WILL ALSO BE YOUR OBS SOURCE (browser)!!
+STEP 1, If you are interested in using this twitch bot, visit:
+https://pokemon-twitch-bot.onrender.com/add.html and enter your twitch channel name.
+(This allows the bot to send messages in your channel chat, depending on your chat security settings you may need to mod the bot)
 
-LAST commands!!
+STEP 2, Set up the OBS overlay by adding a new browser source with this link
+https://pokemon-twitch-bot.onrender.com/?channel= (AT THE END OF THE LINK YOU MUST ENTER YOUR CHANNEL NAME IN ALL LOWERCASE) 
+In your source properties: set the width to 900, the height to 700 and make sure to TICK the "Refresh browser when scene becomes active"
+
+STEP 3, Guess some pokemon! Test out the commands below in your own chat channel and watch the bot do it's thing!
+If you need any assistance at all reach out to me on discord @angelicsatanist
+
+COMMANDS
 
 !wtpstart to start 
 
