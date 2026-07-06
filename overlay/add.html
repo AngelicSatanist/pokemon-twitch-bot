@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Add My Channel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #111;
+            color: white;
+            padding: 30px;
+            max-width: 700px;
+            margin: auto;
+        }
+
+        input, button {
+            font-size: 18px;
+            padding: 12px;
+            margin-top: 10px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        #result {
+            margin-top: 20px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <h1>Add My Channel</h1>
+
+    <p>Enter your Twitch channel name to enable Angel's Who's That Pokémon bot.</p>
+
+    <input id="channelInput" placeholder="example: angelicsatanist">
+    <button id="addButton">Add my channel</button>
+
+    <div id="result"></div>
+
+    <script>
+        const input = document.getElementById("channelInput");
+        const button = document.getElementById("addButton");
+        const result = document.getElementById("result");
+
+        button.addEventListener("click", async () => {
+            const channelName = input.value.trim();
+
+            result.textContent = "Adding channel...";
+
+            const response = await fetch("/add-channel", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ channelName })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                result.textContent = "Could not add channel: " + data.error;
+                return;
+            }
+
+            result.innerHTML = `
+                <p>Channel added: <strong>${data.channelName}</strong></p>
+                <p>Overlay URL:</p>
+                <p><code>${data.overlayUrl}</code></p>
+                <p>Now ask Charli to reload/restart the bot so it joins your chat.</p>
+            `;
+        });
+    </script>
+</body>
+</html>
