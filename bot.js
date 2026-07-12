@@ -137,7 +137,8 @@ function getGame(channel) {
     if (!games[channel]) {
         games[channel] = {
             currentPokemon: null,
-            gameActive: false
+            gameActive: false,
+            hintLettersRevealed: 0
         };
     }
 
@@ -154,6 +155,7 @@ function startNewRound(channel) {
 
     game.currentPokemon = getRandomPokemon();
     game.gameActive = true;
+    game.hintLettersRevealed = 0;
 
     io.to(channel).emit("newPokemon", game.currentPokemon);
 
@@ -339,6 +341,7 @@ async function startBot() {
         if (msg === "!wtpstop") {
             game.gameActive = false;
             game.currentPokemon = null;
+            game.hintLettersRevealed = 0;
             io.to(replyChannel).emit("clearPokemon");
             client.say(replyChannel, "Who's That Pokémon has been stopped.");
             return;
@@ -376,6 +379,41 @@ async function startBot() {
             } else {
             client.say(replyChannel, "There is no active Pokémon round to refresh.");
              }
+
+            return;
+        }
+
+        if (msg === "!wtphint") {
+            if (!game.gameActive || !game.currentPokemon) {
+                client.say(
+                    replyChannel,
+                    "There is no active Pokémon round to give a hint for."
+                );
+                return;
+            }
+
+            const pokemonName = game.currentPokemon.displayName;
+            const totalLetters = pokemonName.replace(/[^a-zA-Z0-9]/g, "").length;
+
+            if (game.hintLettersRevealed >= totalLetters) {
+                client.say(
+                    replyChannel,
+                    `The full name has already been revealed: ${pokemonName}`
+                );
+                return;
+            }
+
+            game.hintLettersRevealed++;
+
+            const hint = createPokemonHint(
+                pokemonName,
+                game.hintLettersRevealed
+            );
+
+            client.say(
+                replyChannel,
+                `🔎 Hint: ${hint}`
+            );
 
             return;
         }
@@ -463,6 +501,28 @@ function normalizePokemonName(name) {
         .replace(/\s+/g, " ")
 
         .trim();
+}
+
+function createPokemonHint(name, lettersToReveal) {
+    let lettersSeen = 0;
+
+    return name
+        .split("")
+        .map(character => {
+            // Show spaces and punctuation automatically
+            if (!/[a-zA-Z0-9]/.test(character)) {
+                return character;
+            }
+
+            lettersSeen++;
+
+            if (lettersSeen <= lettersToReveal) {
+                return character.toUpperCase();
+            }
+
+            return "_";
+        })
+        .join(" ");
 }
 
 startBot();
