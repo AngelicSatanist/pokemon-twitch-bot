@@ -176,6 +176,72 @@ io.on("connection", (socket) => {
     }
 });
 
+async function awardPoint(channel, username) {
+    const cleanChannel = channel.toLowerCase();
+    const cleanUsername = username.toLowerCase();
+
+    const { data: existingPlayer, error: findError } = await supabase
+        .from("leaderboard")
+        .select("id, points, correct_guesses")
+        .eq("channel_name", cleanChannel)
+        .eq("username", cleanUsername)
+        .maybeSingle();
+
+    if (findError) {
+        console.error("Leaderboard lookup error:", findError);
+        return false;
+    }
+
+    if (existingPlayer) {
+        const { error: updateError } = await supabase
+            .from("leaderboard")
+            .update({
+                points: existingPlayer.points + 1,
+                correct_guesses: existingPlayer.correct_guesses + 1
+            })
+            .eq("id", existingPlayer.id);
+
+        if (updateError) {
+            console.error("Leaderboard update error:", updateError);
+            return false;
+        }
+    } else {
+        const { error: insertError } = await supabase
+            .from("leaderboard")
+            .insert({
+                channel_name: cleanChannel,
+                username: cleanUsername,
+                points: 1,
+                correct_guesses: 1
+            });
+
+        if (insertError) {
+            console.error("Leaderboard insert error:", insertError);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+async function getTopFive(channel) {
+    const { data, error } = await supabase
+        .from("leaderboard")
+        .select("username, points")
+        .eq("channel_name", channel.toLowerCase())
+        .order("points", { ascending: false })
+        .order("correct_guesses", { ascending: false })
+        .limit(5);
+
+    if (error) {
+        console.error("Leaderboard read error:", error);
+        return null;
+    }
+
+    return data;
+}
+
+
 async function startBot() {
     const channels = await loadChannelsFromSupabase();
 
@@ -225,6 +291,39 @@ async function startBot() {
 
             return;
             }
+
+    if (msg === "!wtplb") {
+        const topPlayers = await getTopFive(replyChannel);
+
+        if (topPlayers === null) {
+            client.say(
+                replyChannel,
+                "I couldn't load the leaderboard right now."
+            );
+            return;
+        }
+
+        if (topPlayers.length === 0) {
+            client.say(
+                replyChannel,
+                "🏆 The leaderboard is empty. Be the first person to guess a Pokémon!"
+            );
+            return;
+        }
+
+        const leaderboardText = topPlayers
+            .map((player, index) => {
+                return `${index + 1}. ${player.username} — ${player.points} point${player.points === 1 ? "" : "s"}`;
+            })
+            .join(" | ");
+
+        client.say(
+            replyChannel,
+            `🏆 Who's That Pokémon Top 5 🏆 | ${leaderboardText}`
+        );
+
+        return;
+    }
 
         if (msg === "!wtpstart") {
             if (game.gameActive) {
@@ -283,6 +382,8 @@ async function startBot() {
 
         if (game.gameActive && game.currentPokemon) {
             if (msg === game.currentPokemon.name) {
+                await awardPoint(replyChannel, username);
+                
                 client.say(
                     replyChannel,
                     `🎉 ${username} guessed correctly! 🎉 • It was ${game.currentPokemon.displayName}! • 📖 Pokédex entry: ${game.currentPokemon.pokedexEntry} • ⌛ Next Pokémon in 5 seconds...`
