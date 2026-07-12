@@ -24,3 +24,9 @@ COMMANDS
 !wtpskip to skip the pokemon
 
 !wtpstop to stop the bot
+
+!wtpgen to get the current pokemon's generation
+
+!wtphint to reveal one letter at a time of the current pokemon
+
+!wtplb to show the top 5 players
