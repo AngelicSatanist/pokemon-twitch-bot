@@ -313,23 +313,6 @@ async function startBot() {
             return;
         }
 
-        if (msg === "!wtpgen") {
-            if (!game.gameActive || !game.currentPokemon) {
-                client.say(
-                    replyChannel,
-                    "There isn't an active Pokémon round."
-                );
-                return;
-            }
-
-            client.say(
-                replyChannel,
-                `📘 The current Pokémon is from Generation ${game.currentPokemon.generation}.`
-            );
-
-            return;
-        }
-
         const leaderboardText = topPlayers
             .map((player, index) => {
                 return `${index + 1}. ${player.username} — ${player.points} point${player.points === 1 ? "" : "s"}`;
@@ -352,6 +335,23 @@ async function startBot() {
 
             startNewRound(replyChannel);
             client.say(replyChannel, "Who's That Pokémon? Guess now in chat!");
+            return;
+        }
+
+        if (msg === "!wtpgen") {
+        if (!game.gameActive || !game.currentPokemon) {
+            client.say(
+                replyChannel,
+                "There isn't an active Pokémon round."
+            );
+            return;
+        }
+
+            client.say(
+                replyChannel,
+                `📘 The current Pokémon is from Generation ${game.currentPokemon.generation}.`
+            );
+
             return;
         }
 
