@@ -339,17 +339,27 @@ async function startBot() {
         }
 
         if (msg === "!wtpgen") {
-        if (!game.gameActive || !game.currentPokemon) {
-            client.say(
-                replyChannel,
-                "There isn't an active Pokémon round."
-            );
-            return;
-        }
+            if (!game.gameActive || !game.currentPokemon) {
+                client.say(
+                    replyChannel,
+                    "There is no active Pokémon round."
+                );
+                return;
+            }
+
+            const generation = game.currentPokemon.generation;
+
+            if (!generation) {
+                client.say(
+                    replyChannel,
+                    "Generation information is unavailable for this Pokémon."
+                );
+                return;
+            }
 
             client.say(
                 replyChannel,
-                `📘 The current Pokémon is from Generation ${game.currentPokemon.generation}.`
+                `The current Pokémon is from Gen ${generation}.`
             );
 
             return;
