@@ -381,9 +381,12 @@ async function startBot() {
         }
 
         if (game.gameActive && game.currentPokemon) {
-            if (msg === game.currentPokemon.name) {
+            if (
+                normalizePokemonName(msg) ===
+                normalizePokemonName(game.currentPokemon.name)
+            ) {
                 await awardPoint(replyChannel, username);
-                
+
                 client.say(
                     replyChannel,
                     `🎉 ${username} guessed correctly! 🎉 • It was ${game.currentPokemon.displayName}! • 📖 Pokédex entry: ${game.currentPokemon.pokedexEntry} • ⌛ Next Pokémon in 5 seconds...`
@@ -439,6 +442,27 @@ async function reloadChannels() {
     return {
         joined: [...joinedChannels]
     };
+}
+
+
+function normalizePokemonName(name) {
+    return name
+        .toLowerCase()
+
+        // Special symbols
+        .replace(/♀/g, " female")
+        .replace(/♂/g, " male")
+
+        // Remove punctuation
+        .replace(/[.'’`´\-:,!?]/g, "")
+
+        // Remove brackets
+        .replace(/[()]/g, "")
+
+        // Remove extra spaces
+        .replace(/\s+/g, " ")
+
+        .trim();
 }
 
 startBot();
