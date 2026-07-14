@@ -30,3 +30,6 @@ COMMANDS
 !wtphint to reveal one letter at a time of the current pokemon
 
 !wtplb to show the top 5 players
+
+<img width="427" height="418" alt="Screenshot 2026-07-14 151123" src="https://github.com/user-attachments/assets/e7e74783-9ec4-4325-b072-54f802d90c21" />
+<img width="428" height="319" alt="Screenshot 2026-07-14 151751" src="https://github.com/user-attachments/assets/f4023742-e78e-42fb-8ef1-a8a1d6cc0103" />
