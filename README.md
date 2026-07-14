@@ -33,6 +33,6 @@ COMMANDS
 
 <img width="450" alt="Example Screenshot" src="EXAMPLES\Screenshot 2026-07-14 151123.png" />
 <img width="450" alt="Example Screenshot" src="EXAMPLES\Screenshot 2026-07-14 151751.png" />
-<p align="center">
-    <video src="EXAMPLES\Screen Recording 2026-07-14 151925.mp4" width="80%" controls></video>
-</p>
+<img width="450" alt="Example Screenshot" src="EXAMPLES\Screenshot 2026-07-14 153217.png" />
+<img width="450" alt="Example Screenshot" src="EXAMPLES\Screenshot 2026-07-14 153230.png" />
+<img width="450" alt="Example Screenshot" src="EXAMPLES\Screenshot 2026-07-14 153247.png" />
