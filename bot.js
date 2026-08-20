@@ -1834,41 +1834,6 @@ async function handleRewardRedemption(
     }
 }
 
-    console.log(
-        `🎁 Reward redeemed: "${event.reward.title}" by ${event.user_name}`
-    );
-
-
-    // Ignore rewards other than Daily Check-In
-    if (
-        event.reward.title !==
-        CONFIG.dailyCheckinRewardTitle
-    ) {
-        return;
-    }
-
-
-    console.log(
-        `💗 DAILY CHECK-IN received from ${event.user_name}`
-    );
-
-    console.log(
-        `Reward ID: ${event.reward.id}`
-    );
-
-    console.log(
-        `Redemption ID: ${event.id}`
-    );
-
-    console.log(
-        `User ID: ${event.user_id}`
-    );
-
-    console.log(
-        `Redeemed at: ${event.redeemed_at}`
-    );
-
-
 // =====================================================
 // TWITCH STREAM SESSION
 // =====================================================
