@@ -9,6 +9,25 @@ const pokemonList = require("./data/pokemon.json");
 
 const games = {};
 
+// =====================================================
+// BOT CONFIGURATION
+// =====================================================
+
+const CONFIG = {
+    botAdmin: (process.env.BOT_ADMIN_USERNAME || "angelicsatanist")
+        .trim()
+        .toLowerCase(),
+
+    personalChannel: (process.env.PERSONAL_CHANNEL || "angelicsatanist")
+        .trim()
+        .toLowerCase(),
+
+    discordUrl:
+        process.env.DISCORD_URL || "https://discord.gg/HtW7nnDZub",
+
+    nextRoundDelay: 5000
+};
+
 const { createClient } = require("@supabase/supabase-js");
 
 const supabase = createClient(
@@ -89,12 +108,11 @@ app.post("/add-channel", async (req, res) => {
 });
 
 app.get("/game/:channel", (req, res) => {
-    const channel = req.params.channel.toLowerCase();
+    const channel = normalizeChannel(req.params.channel);
     const game = getGame(channel);
 
     res.json({
-        active: game.gameActive,
-        pokemon: game.currentPokemon
+        active: game.gameActive
     });
 });
 
@@ -105,29 +123,23 @@ server.listen(PORT, () => {
 });
 
 async function loadChannelsFromSupabase() {
-    const supabaseUrl = process.env.SUPABASE_URL.trim();
-    const supabaseKey = process.env.SUPABASE_ANON_KEY.trim();
+    const { data, error } = await supabase
+        .from("channels")
+        .select("channel_name")
+        .eq("enabled", true);
 
-    const url = `${supabaseUrl}/rest/v1/channels?select=channel_name&enabled=eq.true`;
+    if (error) {
+        console.error(
+            "Couldn't load channels from Supabase:",
+            error
+        );
 
-    console.log("Loading channels from:", url);
-
-    const response = await fetch(url, {
-        headers: {
-            apikey: supabaseKey,
-            Authorization: `Bearer ${supabaseKey}`
-        }
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Supabase REST error:", response.status, errorText);
         return [];
     }
 
-    const data = await response.json();
-
-    return data.map(row => row.channel_name.toLowerCase());
+    return data
+        .map(row => normalizeChannel(row.channel_name))
+        .filter(Boolean);
 }
 
 let client;
@@ -138,11 +150,46 @@ function getGame(channel) {
         games[channel] = {
             currentPokemon: null,
             gameActive: false,
-            hintLettersRevealed: 0
+            hintLettersRevealed: 0,
+            nextRoundTimer: null
         };
     }
 
     return games[channel];
+}
+
+function clearNextRoundTimer(channel) {
+    const game = getGame(channel);
+
+    if (game.nextRoundTimer) {
+        clearTimeout(game.nextRoundTimer);
+        game.nextRoundTimer = null;
+    }
+}
+
+
+function scheduleNextRound(channel) {
+    const game = getGame(channel);
+
+    clearNextRoundTimer(channel);
+
+    game.nextRoundTimer = setTimeout(() => {
+        game.nextRoundTimer = null;
+        startNewRound(channel);
+    }, CONFIG.nextRoundDelay);
+}
+
+
+function stopGame(channel) {
+    const game = getGame(channel);
+
+    clearNextRoundTimer(channel);
+
+    game.gameActive = false;
+    game.currentPokemon = null;
+    game.hintLettersRevealed = 0;
+
+    io.to(channel).emit("clearPokemon");
 }
 
 function getRandomPokemon() {
@@ -151,22 +198,31 @@ function getRandomPokemon() {
 }
 
 function startNewRound(channel) {
-    const game = getGame(channel);
+    const cleanChannel = normalizeChannel(channel);
+    const game = getGame(cleanChannel);
+
+    clearNextRoundTimer(cleanChannel);
 
     game.currentPokemon = getRandomPokemon();
     game.gameActive = true;
     game.hintLettersRevealed = 0;
 
-    io.to(channel).emit("newPokemon", game.currentPokemon);
+    io.to(cleanChannel).emit(
+        "newPokemon",
+        game.currentPokemon
+    );
 
-    console.log(`New round for ${channel}:`, game.currentPokemon.displayName);
+    console.log(
+        `New round for ${cleanChannel}:`,
+        game.currentPokemon.displayName
+    );
 }
 
 io.on("connection", (socket) => {
     const channel = socket.handshake.query.channel;
 
     if (channel) {
-        const cleanChannel = channel.toLowerCase();
+        const cleanChannel = normalizeChannel(channel);
         socket.join(cleanChannel);
         console.log(`Overlay connected for ${cleanChannel}`);
 
@@ -179,7 +235,7 @@ io.on("connection", (socket) => {
 });
 
 async function awardPoint(channel, username) {
-    const cleanChannel = channel.toLowerCase();
+    const cleanChannel = normalizeChannel(channel);
     const cleanUsername = username.toLowerCase();
 
     const { data: existingPlayer, error: findError } = await supabase
@@ -230,7 +286,7 @@ async function getTopFive(channel) {
     const { data, error } = await supabase
         .from("leaderboard")
         .select("username, points")
-        .eq("channel_name", channel.toLowerCase())
+        .eq("channel_name", normalizeChannel(channel))
         .order("points", { ascending: false })
         .order("correct_guesses", { ascending: false })
         .limit(5);
@@ -267,20 +323,153 @@ async function startBot() {
         console.log("Bot connected to:", [...joinedChannels]);
     });
 
+    function handlePersonalCommand(channel, tags, message) {
+
+        // Remove the # from the Twitch channel name
+        const cleanChannel = normalizeChannel(channel);
+
+        // Basic commands should ONLY work in AngelicSatanist's channel
+        if (cleanChannel !== CONFIG.personalChannel) {
+            return false;
+        }
+
+        // Ignore anything that isn't a command
+        if (!message.startsWith("!")) {
+            return false;
+        }
+
+        // Turn "!hello everyone" into:
+        // command = "hello"
+        // args = ["everyone"]
+        const args = message.slice(1).trim().split(/\s+/);
+        const command = args.shift().toLowerCase();
+
+        const username = tags["display-name"] || tags.username;
+
+        switch (command) {
+
+            case "so":
+            case "shoutout": {
+
+                if (!canUseCommand("moderator", channel, tags)) {
+                    client.say(
+                        channel,
+                        `@${username}, that command is only available to moderators.`
+                    );
+
+                    return true;
+                }
+
+                const target = args[0];
+
+                if (!target) {
+                    client.say(
+                        channel,
+                        `@${username}, please tell me who you want to shout out!`
+                    );
+
+                    return true;
+                }
+
+                const cleanTarget = target.replace("@", "");
+
+                client.say(
+                    channel,
+                    `💗 Go check out @${cleanTarget}! https://twitch.tv/${cleanTarget}`
+                );
+
+                return true;
+            }
+
+            case "hello":
+            case "hi":
+                client.say(channel, `Hi @${username}! 💗`);
+                return true;
+
+
+            case "lurk":
+                client.say(
+                    channel,
+                    `Thanks for the lurk @${username}! 💕 Enjoy your lurky lurking!`
+                );
+                return true;
+
+
+            case "commands":
+                client.say(
+                    channel,
+                    `Commands: !hello | !lurk | !discord  | !hug`
+                );
+                return true;
+
+
+            case "discord":
+                client.say(
+                    channel,
+                    `💗 Join the Discord: ${CONFIG.discordUrl}`
+                );
+                return true;
+
+
+            //case "socials":
+            //    client.say(
+            //        channel,
+            //        `✨ You can find Angel's socials here: YOUR_SOCIALS_LINK`
+            //    );
+            //    return true;
+
+
+            case "hug": {
+                const target = args.join(" ");
+
+                if (!target) {
+                    client.say(
+                        channel,
+                        `@${username} is sending hugs to everyone! 🩷`
+                    );
+                } else {
+                    client.say(
+                        channel,
+                        `@${username} gives ${target} a big hug! 🫂💕`
+                    );
+                }
+
+                return true;
+            }
+            default:
+                return false;
+        }
+    }
+
     client.on("message", async (channel, tags, message, self) => {
         if (self) return;
+        if (handlePersonalCommand(channel, tags, message)) return;
 
         const msg = message.toLowerCase().trim();
-        const username = tags["display-name"];
-        const replyChannel = channel.replace("#", "").toLowerCase();
+        const username = getUsername(tags);
+        const displayName = getDisplayName(tags);
+        const replyChannel = normalizeChannel(channel);
         const game = getGame(replyChannel);
+
+        const requiredPermission =
+            POKEMON_COMMAND_PERMISSIONS[msg];
+
+        if (
+            requiredPermission &&
+            !canUseCommand(requiredPermission, channel, tags)
+        ) {
+            return;
+        }
 
         console.log(`Message received in: ${replyChannel}`);
 
         if (msg === "!reloadchannels") {
 
-            // Only you can use it
-            if (replyChannel !== "angelicsatanist") {
+            if (replyChannel !== CONFIG.personalChannel) {
+                return;
+            }
+
+            if (!canUseCommand("botAdmin", channel, tags)) {
                 return;
             }
 
@@ -292,9 +481,9 @@ async function startBot() {
             );
 
             return;
-            }
+        }
 
-    if (msg === "!wtplb") {
+        if (msg === "!wtplb") {
         const topPlayers = await getTopFive(replyChannel);
 
         if (topPlayers === null) {
@@ -366,11 +555,14 @@ async function startBot() {
         }
 
         if (msg === "!wtpstop") {
-            game.gameActive = false;
-            game.currentPokemon = null;
-            game.hintLettersRevealed = 0;
-            io.to(replyChannel).emit("clearPokemon");
-            client.say(replyChannel, "Who's That Pokémon has been stopped.");
+
+            stopGame(replyChannel);
+
+            client.say(
+                replyChannel,
+                "Who's That Pokémon has been stopped."
+            );
+
             return;
         }
 
@@ -392,9 +584,7 @@ async function startBot() {
 
             game.gameActive = false;
 
-            setTimeout(() => {
-                startNewRound(replyChannel);
-            }, 5000);
+            scheduleNextRound(replyChannel);
 
             return;
         }
@@ -404,8 +594,11 @@ async function startBot() {
                 io.to(replyChannel).emit("newPokemon", game.currentPokemon);
                 client.say(replyChannel, "Overlay refreshed.");
             } else {
-            client.say(replyChannel, "There is no active Pokémon round to refresh.");
-             }
+                client.say(
+                    replyChannel, 
+                    "There is no active Pokémon round to refresh."
+                );
+            }
 
             return;
         }
@@ -446,32 +639,43 @@ async function startBot() {
         }
 
         if (game.gameActive && game.currentPokemon) {
+
             if (
                 normalizePokemonName(msg) ===
                 normalizePokemonName(game.currentPokemon.name)
             ) {
-                await awardPoint(replyChannel, username);
+
+                // Lock the round immediately so nobody else can win it
+                game.gameActive = false;
+
+                // Save the Pokémon before doing asynchronous work
+                const correctPokemon = game.currentPokemon;
+
+                const pointAwarded = await awardPoint(
+                    replyChannel,
+                    username
+                );
+
+                if (!pointAwarded) {
+                    console.error(
+                        `Failed to award point to ${username} in ${replyChannel}`
+                    );
+                }
 
                 client.say(
                     replyChannel,
-                    `🎉 ${username} guessed correctly! 🎉 • It was ${game.currentPokemon.displayName}! • 📖 Pokédex entry: ${game.currentPokemon.pokedexEntry} • ⌛ Next Pokémon in 5 seconds...`
+                    `🎉 ${displayName} guessed correctly! 🎉 • It was ${correctPokemon.displayName}! • 📖 Pokédex entry: ${correctPokemon.pokedexEntry} • ⌛ Next Pokémon in 5 seconds...`
                 );
 
                 io.to(replyChannel).emit("revealPokemon", {
-                    ...game.currentPokemon,
-                    winner: username
+                    ...correctPokemon,
+                    winner: displayName
                 });
 
-                game.gameActive = false;
-
-                setTimeout(() => {
-                    startNewRound(replyChannel);
-                }, 5000);
+                scheduleNextRound(replyChannel);
 
                 return;
             }
-
-            
         }
     });
 }
@@ -495,8 +699,16 @@ async function reloadChannels() {
     for (const channel of [...joinedChannels]) {
         if (!latestChannels.includes(channel)) {
             try {
+                // Stop any active game and cancel pending timers
+                stopGame(channel);
+
                 await client.part(channel);
+
                 joinedChannels.delete(channel);
+
+                // Remove the channel's saved game state
+                delete games[channel];
+
                 console.log(`Left ${channel}`);
             } catch (err) {
                 console.error(`Couldn't leave ${channel}:`, err);
@@ -509,6 +721,42 @@ async function reloadChannels() {
     };
 }
 
+// =====================================================
+// COMMAND PERMISSIONS
+// =====================================================
+
+function canUseCommand(requiredPermission, channel, tags) {
+    const cleanChannel = normalizeChannel(channel);
+    const username = getUsername(tags);
+
+    const isOwner = username === cleanChannel;
+
+    const isModerator =
+        isOwner ||
+        tags?.mod === true ||
+        tags?.badges?.moderator === "1";
+
+    const isBotAdmin =
+        username === CONFIG.botAdmin;
+
+    switch (requiredPermission) {
+
+        case "viewer":
+            return true;
+
+        case "moderator":
+            return isModerator;
+
+        case "owner":
+            return isOwner;
+
+        case "botAdmin":
+            return isBotAdmin;
+
+        default:
+            return false;
+    }
+}
 
 function normalizePokemonName(name) {
     return name
@@ -551,5 +799,45 @@ function createPokemonHint(name, lettersToReveal) {
         })
         .join(" ");
 }
+
+// =====================================================
+// TWITCH HELPERS
+// =====================================================
+
+function normalizeChannel(channel) {
+    return String(channel || "")
+        .replace(/^#/, "")
+        .replace(/^@/, "")
+        .trim()
+        .toLowerCase();
+}
+
+
+function getUsername(tags) {
+    return String(tags?.username || tags?.["display-name"] || "")
+        .replace(/^@/, "")
+        .trim()
+        .toLowerCase();
+}
+
+
+function getDisplayName(tags) {
+    return tags?.["display-name"] || tags?.username || "viewer";
+}
+
+// =====================================================
+// POKÉMON COMMAND PERMISSIONS
+// =====================================================
+
+const POKEMON_COMMAND_PERMISSIONS = {
+    "!wtplb": "viewer",
+    "!wtpgen": "viewer",
+    "!wtphint": "viewer",
+
+    "!wtpstart": "moderator",
+    "!wtpstop": "moderator",
+    "!wtpskip": "moderator",
+    "!wtprefresh": "moderator"
+};
 
 startBot();
