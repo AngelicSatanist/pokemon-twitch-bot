@@ -378,6 +378,15 @@ async function startBot() {
                         `📏 @${username} is packing ${roll.result} inches! 😳`
                     );
 
+                    io.to(cleanChannel).emit(
+                        "funCommand",
+                        {
+                            command: "inches",
+                            username: username,
+                            result: roll.result
+                        }
+                    );
+
                 } catch (error) {
                     console.error(
                         "!inches error:",
@@ -408,6 +417,15 @@ async function startBot() {
                         client.say(
                             channel,
                             `⭕ @${username}, girth calculations are only available while the stream is live!`
+                        );
+
+                        io.to(cleanChannel).emit(
+                            "funCommand",
+                            {
+                                command: "girth",
+                                username: username,
+                                result: roll.result
+                            }
                         );
 
                         return true;
@@ -469,6 +487,15 @@ async function startBot() {
                     client.say(
                         channel,
                         `🎀 @${username}'s cup size this stream is ${roll.result}!`
+                    );
+
+                    io.to(cleanChannel).emit(
+                        "funCommand",
+                        {
+                            command: "cup",
+                            username: username,
+                            result: roll.result
+                        }
                     );
 
                 } catch (error) {
