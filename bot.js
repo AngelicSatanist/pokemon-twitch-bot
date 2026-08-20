@@ -6,6 +6,8 @@ const { Server } = require("socket.io");
 const tmi = require("tmi.js");
 const path = require("path");
 const pokemonList = require("./data/pokemon.json");
+const crypto = require("crypto");
+
 
 const games = {};
 
@@ -70,6 +72,232 @@ app.get("/theme/:channel", async (req, res) => {
 });
 
 app.use(express.json());
+
+const twitchOAuthStates = new Map();
+
+
+app.get("/auth/twitch", (req, res) => {
+
+    const state =
+        crypto.randomBytes(24).toString("hex");
+
+    twitchOAuthStates.set(
+        state,
+        Date.now()
+    );
+
+
+    const params =
+        new URLSearchParams({
+            client_id:
+                process.env.TWITCH_CLIENT_ID,
+
+            redirect_uri:
+                process.env.TWITCH_REDIRECT_URI,
+
+            response_type:
+                "code",
+
+            scope:
+                "channel:read:redemptions",
+
+            state:
+                state
+        });
+
+
+    res.redirect(
+        `https://id.twitch.tv/oauth2/authorize?${params.toString()}`
+    );
+});
+
+app.get(
+    "/auth/twitch/callback",
+    async (req, res) => {
+
+        try {
+
+            const {
+                code,
+                state,
+                error
+            } = req.query;
+
+
+            if (error) {
+                return res
+                    .status(400)
+                    .send(
+                        `Twitch authorization failed: ${error}`
+                    );
+            }
+
+
+            if (
+                !state ||
+                !twitchOAuthStates.has(state)
+            ) {
+                return res
+                    .status(400)
+                    .send(
+                        "Invalid Twitch OAuth state."
+                    );
+            }
+
+
+            twitchOAuthStates.delete(state);
+
+
+            const params =
+                new URLSearchParams({
+                    client_id:
+                        process.env.TWITCH_CLIENT_ID,
+
+                    client_secret:
+                        process.env.TWITCH_CLIENT_SECRET,
+
+                    code:
+                        code,
+
+                    grant_type:
+                        "authorization_code",
+
+                    redirect_uri:
+                        process.env.TWITCH_REDIRECT_URI
+                });
+
+
+            const tokenResponse =
+                await fetch(
+                    "https://id.twitch.tv/oauth2/token",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/x-www-form-urlencoded"
+                        },
+
+                        body: params
+                    }
+                );
+
+
+            if (!tokenResponse.ok) {
+
+                const text =
+                    await tokenResponse.text();
+
+                throw new Error(
+                    `Token exchange failed: ${text}`
+                );
+            }
+
+
+            const tokenData =
+                await tokenResponse.json();
+
+
+            const validateResponse =
+                await fetch(
+                    "https://id.twitch.tv/oauth2/validate",
+                    {
+                        headers: {
+                            Authorization:
+                                `OAuth ${tokenData.access_token}`
+                        }
+                    }
+                );
+
+
+            if (!validateResponse.ok) {
+                throw new Error(
+                    "Couldn't validate Twitch authorization."
+                );
+            }
+
+
+            const validateData =
+                await validateResponse.json();
+
+
+            const authorizedChannel =
+                validateData.login
+                    .trim()
+                    .toLowerCase();
+
+
+            // Only allow your broadcaster account
+            if (
+                authorizedChannel !==
+                CONFIG.personalChannel
+            ) {
+                return res
+                    .status(403)
+                    .send(
+                        "Please authorize using the broadcaster account."
+                    );
+            }
+
+
+            const expiresAt =
+                new Date(
+                    Date.now() +
+                    tokenData.expires_in * 1000
+                ).toISOString();
+
+
+            const {
+                error: saveError
+            } =
+                await supabaseAdmin
+                    .from("twitch_auth")
+                    .upsert({
+                        channel_name:
+                            authorizedChannel,
+
+                        broadcaster_user_id:
+                            validateData.user_id,
+
+                        access_token:
+                            tokenData.access_token,
+
+                        refresh_token:
+                            tokenData.refresh_token,
+
+                        expires_at:
+                            expiresAt,
+
+                        updated_at:
+                            new Date().toISOString()
+                    });
+
+
+            if (saveError) {
+                throw saveError;
+            }
+
+
+            res.send(
+                "✅ Twitch connected! You can close this tab."
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "Twitch OAuth callback error:",
+                error
+            );
+
+            res
+                .status(500)
+                .send(
+                    "Something went wrong connecting Twitch."
+                );
+        }
+    }
+);
 
 app.post("/add-channel", async (req, res) => {
     const channelName = req.body.channelName?.toLowerCase().trim();
