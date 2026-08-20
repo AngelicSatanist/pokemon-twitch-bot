@@ -10,6 +10,15 @@ const pokemonList = require("./data/pokemon.json");
 const games = {};
 
 // =====================================================
+// FUN COMMAND RESULTS
+// =====================================================
+
+const funCommandResults = {
+    inches: new Map(),
+    girth: new Map()
+};
+
+// =====================================================
 // BOT CONFIGURATION
 // =====================================================
 
@@ -33,6 +42,10 @@ const { createClient } = require("@supabase/supabase-js");
 const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_ANON_KEY
+);    
+const supabaseAdmin = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SECRET_KEY
 );
 
 const app = express();
@@ -323,7 +336,7 @@ async function startBot() {
         console.log("Bot connected to:", [...joinedChannels]);
     });
 
-    function handlePersonalCommand(channel, tags, message) {
+    async function handlePersonalCommand(channel, tags, message) {
 
         // Remove the # from the Twitch channel name
         const cleanChannel = normalizeChannel(channel);
@@ -344,10 +357,143 @@ async function startBot() {
         const args = message.slice(1).trim().split(/\s+/);
         const command = args.shift().toLowerCase();
 
-        const username = tags["display-name"] || tags.username;
+        const username = getDisplayName(tags);
+        const accountName = getUsername(tags);
 
         switch (command) {
 
+            case "inches": {
+
+                try {
+                    const roll =
+                        await getOrCreateFunRoll(
+                            cleanChannel,
+                            accountName,
+                            "inches",
+                            () => randomNumber(1, 12)
+                        );
+
+                    if (roll.offline) {
+                        client.say(
+                            channel,
+                            `📏 @${username}, you can only discover your inches while the stream is live!`
+                        );
+
+                        return true;
+                    }
+
+                    client.say(
+                        channel,
+                        `📏 @${username} is packing ${roll.result} inches! 😳`
+                    );
+
+                } catch (error) {
+                    console.error(
+                        "!inches error:",
+                        error
+                    );
+
+                    client.say(
+                        channel,
+                        `The measuring tape broke while measuring @${username} 💀`
+                    );
+                }
+
+                return true;
+            }
+
+            case "girth": {
+
+                try {
+                    const roll =
+                        await getOrCreateFunRoll(
+                            cleanChannel,
+                            accountName,
+                            "girth",
+                            () => randomNumber(1, 10)
+                        );
+
+                    if (roll.offline) {
+                        client.say(
+                            channel,
+                            `⭕ @${username}, girth calculations are only available while the stream is live!`
+                        );
+
+                        return true;
+                    }
+
+                    client.say(
+                        channel,
+                        `⭕ @${username} has a girth of ${roll.result} inches! 💀`
+                    );
+
+                } catch (error) {
+                    console.error(
+                        "!girth error:",
+                        error
+                    );
+
+                    client.say(
+                        channel,
+                        `The girth calculator broke trying to measure @${username} 💀`
+                    );
+                }
+
+                return true;
+            }
+            case "cup":
+            case "cupsize": {
+
+                try {
+                    const cupSizes = [
+                        "AA",
+                        "A",
+                        "B",
+                        "C",
+                        "D",
+                        "DD",
+                        "E",
+                        "F",
+                        "G",
+                        "H"
+                    ];
+
+                    const roll =
+                        await getOrCreateFunRoll(
+                            cleanChannel,
+                            accountName,
+                            "cup",
+                            () => randomChoice(cupSizes)
+                        );
+
+                    if (roll.offline) {
+                        client.say(
+                            channel,
+                            `🎀 @${username}, cup calculations only happen while the stream is live!`
+                        );
+
+                        return true;
+                    }
+
+                    client.say(
+                        channel,
+                        `🎀 @${username}'s cup size this stream is ${roll.result}!`
+                    );
+
+                } catch (error) {
+                    console.error(
+                        "!cup error:",
+                        error
+                    );
+
+                    client.say(
+                        channel,
+                        `The cup calculator couldn't handle @${username} 😭`
+                    );
+                }
+
+                return true;
+            }
             case "so":
             case "shoutout": {
 
@@ -380,6 +526,57 @@ async function startBot() {
 
                 return true;
             }
+            case "inches": {
+
+                const inches = getFunCommandResult(
+                    "inches",
+                    accountName,
+                    1,
+                    20
+                );
+
+                client.say(
+                    channel,
+                    `📏 @${username} is ${inches} inches! 😳`
+                );
+
+                return true;
+            }
+
+            case "girth": {
+
+                const girth = getFunCommandResult(
+                    "girth",
+                    accountName,
+                    1,
+                    10
+                );
+
+                client.say(
+                    channel,
+                    `⭕ @${username} has a girth of ${girth} inches! 💀`
+                );
+
+                return true;
+                
+            }
+
+            case "resetfun":
+            case "newstream": {
+
+                if (!canUseCommand("owner", channel, tags)) {
+                    return true;
+                }
+
+                resetFunCommandResults();
+
+                client.say(
+                    channel,
+                    `🎲 New stream, new questionable measurements! Fun command results have been reset.`
+                );
+
+                return true;
+            }
 
             case "hello":
             case "hi":
@@ -398,7 +595,7 @@ async function startBot() {
             case "commands":
                 client.say(
                     channel,
-                    `Commands: !hello | !lurk | !discord  | !hug`
+                    `Commands: !hello | !lurk | !discord | !hug | !inches | !girth | !cup`
                 );
                 return true;
 
@@ -443,7 +640,16 @@ async function startBot() {
 
     client.on("message", async (channel, tags, message, self) => {
         if (self) return;
-        if (handlePersonalCommand(channel, tags, message)) return;
+
+        if (
+            await handlePersonalCommand(
+                channel,
+                tags,
+                message
+            )
+        ) {
+            return;
+        }
 
         const msg = message.toLowerCase().trim();
         const username = getUsername(tags);
@@ -801,6 +1007,113 @@ function createPokemonHint(name, lettersToReveal) {
 }
 
 // =====================================================
+// TWITCH STREAM SESSION
+// =====================================================
+
+let twitchAppToken = null;
+let twitchAppTokenExpiresAt = 0;
+
+const streamIdCache = new Map();
+
+
+async function getTwitchAppToken() {
+
+    // Keep using the current token while it is valid
+    if (
+        twitchAppToken &&
+        Date.now() < twitchAppTokenExpiresAt
+    ) {
+        return twitchAppToken;
+    }
+
+    const params = new URLSearchParams({
+        client_id: process.env.TWITCH_CLIENT_ID,
+        client_secret: process.env.TWITCH_CLIENT_SECRET,
+        grant_type: "client_credentials"
+    });
+
+    const response = await fetch(
+        "https://id.twitch.tv/oauth2/token",
+        {
+            method: "POST",
+            headers: {
+                "Content-Type":
+                    "application/x-www-form-urlencoded"
+            },
+            body: params
+        }
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+
+        throw new Error(
+            `Couldn't get Twitch app token: ${errorText}`
+        );
+    }
+
+    const data = await response.json();
+
+    twitchAppToken = data.access_token;
+
+    twitchAppTokenExpiresAt =
+        Date.now() +
+        (Math.max(data.expires_in - 60, 0) * 1000);
+
+    return twitchAppToken;
+}
+
+async function getCurrentStreamId(channel) {
+
+    const cleanChannel = normalizeChannel(channel);
+
+    // Cache Twitch's answer for 30 seconds
+    const cached = streamIdCache.get(cleanChannel);
+
+    if (
+        cached &&
+        Date.now() - cached.checkedAt < 30000
+    ) {
+        return cached.streamId;
+    }
+
+    const token = await getTwitchAppToken();
+
+    const response = await fetch(
+        `https://api.twitch.tv/helix/streams?user_login=${encodeURIComponent(cleanChannel)}`,
+        {
+            headers: {
+                "Client-Id":
+                    process.env.TWITCH_CLIENT_ID,
+
+                Authorization:
+                    `Bearer ${token}`
+            }
+        }
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+
+        throw new Error(
+            `Couldn't check Twitch stream: ${errorText}`
+        );
+    }
+
+    const data = await response.json();
+
+    const streamId =
+        data.data?.[0]?.id || null;
+
+    streamIdCache.set(cleanChannel, {
+        streamId,
+        checkedAt: Date.now()
+    });
+
+    return streamId;
+}
+
+// =====================================================
 // TWITCH HELPERS
 // =====================================================
 
@@ -826,6 +1139,135 @@ function getDisplayName(tags) {
 }
 
 // =====================================================
+// FUN COMMAND HELPERS
+// =====================================================
+
+function randomNumber(min, max) {
+    return Math.floor(
+        Math.random() * (max - min + 1)
+    ) + min;
+}
+
+
+function randomChoice(options) {
+    return options[
+        Math.floor(Math.random() * options.length)
+    ];
+}
+
+async function getOrCreateFunRoll(
+    channel,
+    username,
+    commandName,
+    generateResult
+) {
+
+    const cleanChannel =
+        normalizeChannel(channel);
+
+    const cleanUsername =
+        String(username)
+            .trim()
+            .toLowerCase();
+
+    // Ask Twitch which stream is currently running
+    const streamId =
+        await getCurrentStreamId(cleanChannel);
+
+    // Channel isn't currently live
+    if (!streamId) {
+        return {
+            offline: true,
+            result: null,
+            isNew: false
+        };
+    }
+
+    // Look for an existing roll
+    const {
+        data: existingRoll,
+        error: findError
+    } = await supabaseAdmin
+        .from("fun_rolls")
+        .select("result")
+        .eq("channel_name", cleanChannel)
+        .eq("stream_id", streamId)
+        .eq("username", cleanUsername)
+        .eq("command_name", commandName)
+        .maybeSingle();
+
+    if (findError) {
+        console.error(
+            "Fun roll lookup error:",
+            findError
+        );
+
+        throw findError;
+    }
+
+    // They already used this command this stream
+    if (existingRoll) {
+        return {
+            offline: false,
+            result: existingRoll.result,
+            isNew: false
+        };
+    }
+
+    // First use this stream - generate their result
+    const result =
+        String(generateResult());
+
+    const { error: insertError } =
+        await supabaseAdmin
+            .from("fun_rolls")
+            .insert({
+                channel_name: cleanChannel,
+                stream_id: streamId,
+                username: cleanUsername,
+                command_name: commandName,
+                result: result
+            });
+
+    if (insertError) {
+
+        // If two identical requests arrived at almost
+        // exactly the same time, check the database again
+        const {
+            data: retryRoll
+        } = await supabaseAdmin
+            .from("fun_rolls")
+            .select("result")
+            .eq("channel_name", cleanChannel)
+            .eq("stream_id", streamId)
+            .eq("username", cleanUsername)
+            .eq("command_name", commandName)
+            .maybeSingle();
+
+        if (retryRoll) {
+            return {
+                offline: false,
+                result: retryRoll.result,
+                isNew: false
+            };
+        }
+
+        console.error(
+            "Fun roll insert error:",
+            insertError
+        );
+
+        throw insertError;
+    }
+
+    return {
+        offline: false,
+        result: result,
+        isNew: true
+    };
+}
+
+// =====================================================
 // POKÉMON COMMAND PERMISSIONS
 // =====================================================
 
@@ -840,4 +1282,29 @@ const POKEMON_COMMAND_PERMISSIONS = {
     "!wtprefresh": "moderator"
 };
 
+// =====================================================
+// FUN COMMAND HELPERS
+// =====================================================
+
+function getFunCommandResult(commandName, username, min, max) {
+    const results = funCommandResults[commandName];
+
+    // If they haven't rolled this stream, generate a number
+    if (!results.has(username)) {
+        const result =
+            Math.floor(Math.random() * (max - min + 1)) + min;
+
+        results.set(username, result);
+    }
+
+    // Otherwise return the number they already got
+    return results.get(username);
+}
+
+
+function resetFunCommandResults() {
+    Object.values(funCommandResults).forEach(results => {
+        results.clear();
+    });
+}
 startBot();
