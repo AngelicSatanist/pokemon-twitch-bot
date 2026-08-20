@@ -31,8 +31,12 @@ const CONFIG = {
         dailyCheckinRewardTitle:
             "💗 Daily Check-In",
 
+        dailyCheckinRewardId:
+            process.env.DAILY_CHECKIN_REWARD_ID,
+
         timezone:
             "Australia/Adelaide",
+
     nextRoundDelay: 5000
 };
 
@@ -1647,6 +1651,194 @@ async function handleRewardRedemption(
     );
 
 
+    // Ignore every reward except Daily Check-In
+    if (
+        event.reward.id !==
+        CONFIG.dailyCheckinRewardId
+    ) {
+        return;
+    }
+
+
+    try {
+
+        const checkinDate =
+            getDateInTimeZone(
+                event.redeemed_at,
+                CONFIG.timezone
+            );
+
+
+        // -----------------------------------------
+        // Has this viewer already checked in today?
+        // -----------------------------------------
+
+        const {
+            data: existingCheckin,
+            error: existingError
+        } =
+            await supabaseAdmin
+                .from("daily_checkins")
+                .select("id")
+                .eq(
+                    "channel_name",
+                    CONFIG.personalChannel
+                )
+                .eq(
+                    "user_id",
+                    event.user_id
+                )
+                .eq(
+                    "checkin_date",
+                    checkinDate
+                )
+                .maybeSingle();
+
+
+        if (existingError) {
+            throw existingError;
+        }
+
+
+        // Already checked in today
+        if (existingCheckin) {
+
+            console.log(
+                `${event.user_name} already checked in on ${checkinDate}.`
+            );
+
+
+            client.say(
+                CONFIG.personalChannel,
+                `💗 @${event.user_name}, you've already checked in today!`
+            );
+
+
+            return;
+        }
+
+
+        // -----------------------------------------
+        // Save today's check-in
+        // -----------------------------------------
+
+        const {
+            error: insertError
+        } =
+            await supabaseAdmin
+                .from("daily_checkins")
+                .insert({
+                    channel_name:
+                        CONFIG.personalChannel,
+
+                    user_id:
+                        event.user_id,
+
+                    username:
+                        event.user_name,
+
+                    checkin_date:
+                        checkinDate,
+
+                    redemption_id:
+                        event.id,
+
+                    redeemed_at:
+                        event.redeemed_at
+                });
+
+
+        if (insertError) {
+            throw insertError;
+        }
+
+
+        // -----------------------------------------
+        // Count lifetime check-ins
+        // -----------------------------------------
+
+        const {
+            count,
+            error: countError
+        } =
+            await supabaseAdmin
+                .from("daily_checkins")
+                .select(
+                    "id",
+                    {
+                        count: "exact",
+                        head: true
+                    }
+                )
+                .eq(
+                    "channel_name",
+                    CONFIG.personalChannel
+                )
+                .eq(
+                    "user_id",
+                    event.user_id
+                );
+
+
+        if (countError) {
+            throw countError;
+        }
+
+
+        const totalCheckins =
+            count || 1;
+
+
+        console.log(
+            `💗 ${event.user_name} completed Daily Check-In #${totalCheckins}`
+        );
+
+
+        // -----------------------------------------
+        // Twitch chat response
+        // -----------------------------------------
+
+        client.say(
+            CONFIG.personalChannel,
+            `💗 @${event.user_name} checked in for the day! ✨ This is check-in #${totalCheckins}!`
+        );
+
+
+        // -----------------------------------------
+        // Send result to fun overlay
+        // -----------------------------------------
+
+        io.to(
+            CONFIG.personalChannel
+        ).emit(
+            "funCommand",
+            {
+                command:
+                    "checkin",
+
+                username:
+                    event.user_name,
+
+                result:
+                    totalCheckins
+            }
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "Daily Check-In error:",
+            error
+        );
+    }
+}
+
+    console.log(
+        `🎁 Reward redeemed: "${event.reward.title}" by ${event.user_name}`
+    );
+
+
     // Ignore rewards other than Daily Check-In
     if (
         event.reward.title !==
@@ -1675,7 +1867,7 @@ async function handleRewardRedemption(
     console.log(
         `Redeemed at: ${event.redeemed_at}`
     );
-}
+
 
 // =====================================================
 // TWITCH STREAM SESSION
@@ -1807,6 +1999,46 @@ function getUsername(tags) {
 
 function getDisplayName(tags) {
     return tags?.["display-name"] || tags?.username || "viewer";
+}
+
+function getDateInTimeZone(
+    dateValue,
+    timeZone
+) {
+
+    const date =
+        new Date(dateValue);
+
+    const parts =
+        new Intl.DateTimeFormat(
+            "en-AU",
+            {
+                timeZone: timeZone,
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit"
+            }
+        )
+            .formatToParts(date);
+
+
+    const year =
+        parts.find(
+            part => part.type === "year"
+        ).value;
+
+    const month =
+        parts.find(
+            part => part.type === "month"
+        ).value;
+
+    const day =
+        parts.find(
+            part => part.type === "day"
+        ).value;
+
+
+    return `${year}-${month}-${day}`;
 }
 
 // =====================================================
