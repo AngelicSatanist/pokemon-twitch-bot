@@ -10,15 +10,6 @@ const pokemonList = require("./data/pokemon.json");
 const games = {};
 
 // =====================================================
-// FUN COMMAND RESULTS
-// =====================================================
-
-const funCommandResults = {
-    inches: new Map(),
-    girth: new Map()
-};
-
-// =====================================================
 // BOT CONFIGURATION
 // =====================================================
 
@@ -370,7 +361,7 @@ async function startBot() {
                             cleanChannel,
                             accountName,
                             "inches",
-                            () => randomNumber(1, 12)
+                            () => randomNumber(1, 20)
                         );
 
                     if (roll.offline) {
@@ -522,57 +513,6 @@ async function startBot() {
                 client.say(
                     channel,
                     `💗 Go check out @${cleanTarget}! https://twitch.tv/${cleanTarget}`
-                );
-
-                return true;
-            }
-            case "inches": {
-
-                const inches = getFunCommandResult(
-                    "inches",
-                    accountName,
-                    1,
-                    20
-                );
-
-                client.say(
-                    channel,
-                    `📏 @${username} is ${inches} inches! 😳`
-                );
-
-                return true;
-            }
-
-            case "girth": {
-
-                const girth = getFunCommandResult(
-                    "girth",
-                    accountName,
-                    1,
-                    10
-                );
-
-                client.say(
-                    channel,
-                    `⭕ @${username} has a girth of ${girth} inches! 💀`
-                );
-
-                return true;
-                
-            }
-
-            case "resetfun":
-            case "newstream": {
-
-                if (!canUseCommand("owner", channel, tags)) {
-                    return true;
-                }
-
-                resetFunCommandResults();
-
-                client.say(
-                    channel,
-                    `🎲 New stream, new questionable measurements! Fun command results have been reset.`
                 );
 
                 return true;
@@ -1282,29 +1222,4 @@ const POKEMON_COMMAND_PERMISSIONS = {
     "!wtprefresh": "moderator"
 };
 
-// =====================================================
-// FUN COMMAND HELPERS
-// =====================================================
-
-function getFunCommandResult(commandName, username, min, max) {
-    const results = funCommandResults[commandName];
-
-    // If they haven't rolled this stream, generate a number
-    if (!results.has(username)) {
-        const result =
-            Math.floor(Math.random() * (max - min + 1)) + min;
-
-        results.set(username, result);
-    }
-
-    // Otherwise return the number they already got
-    return results.get(username);
-}
-
-
-function resetFunCommandResults() {
-    Object.values(funCommandResults).forEach(results => {
-        results.clear();
-    });
-}
 startBot();
