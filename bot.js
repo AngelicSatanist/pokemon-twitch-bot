@@ -7,6 +7,7 @@ const tmi = require("tmi.js");
 const path = require("path");
 const pokemonList = require("./data/pokemon.json");
 const crypto = require("crypto");
+const WebSocket = require("ws");
 
 
 const games = {};
@@ -27,6 +28,11 @@ const CONFIG = {
     discordUrl:
         process.env.DISCORD_URL || "https://discord.gg/HtW7nnDZub",
 
+        dailyCheckinRewardTitle:
+            "💗 Daily Check-In",
+
+        timezone:
+            "Australia/Adelaide",
     nextRoundDelay: 5000
 };
 
@@ -549,6 +555,8 @@ async function startBot() {
     });
 
     client.connect();
+
+    startEventSub();
 
     client.on("connected", () => {
         channels.forEach(channel => joinedChannels.add(channel));
@@ -1205,6 +1213,468 @@ function createPokemonHint(name, lettersToReveal) {
             return "_";
         })
         .join(" ");
+}
+
+// =====================================================
+// TWITCH BROADCASTER AUTH
+// =====================================================
+
+async function getBroadcasterAuth() {
+
+    const {
+        data,
+        error
+    } =
+        await supabaseAdmin
+            .from("twitch_auth")
+            .select("*")
+            .eq(
+                "channel_name",
+                CONFIG.personalChannel
+            )
+            .maybeSingle();
+
+
+    if (error) {
+        throw error;
+    }
+
+
+    if (!data) {
+        throw new Error(
+            "Broadcaster Twitch authorization has not been completed."
+        );
+    }
+
+
+    // Check whether the saved Twitch access token
+    // is still valid
+    const validateResponse =
+        await fetch(
+            "https://id.twitch.tv/oauth2/validate",
+            {
+                headers: {
+                    Authorization:
+                        `OAuth ${data.access_token}`
+                }
+            }
+        );
+
+
+    // The current token is still valid
+    if (validateResponse.ok) {
+        return data;
+    }
+
+
+    console.log(
+        "Refreshing broadcaster Twitch token..."
+    );
+
+
+    // The access token expired, so use the
+    // saved refresh token to get a new one
+    const params =
+        new URLSearchParams({
+            client_id:
+                process.env.TWITCH_CLIENT_ID,
+
+            client_secret:
+                process.env.TWITCH_CLIENT_SECRET,
+
+            grant_type:
+                "refresh_token",
+
+            refresh_token:
+                data.refresh_token
+        });
+
+
+    const refreshResponse =
+        await fetch(
+            "https://id.twitch.tv/oauth2/token",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/x-www-form-urlencoded"
+                },
+
+                body: params
+            }
+        );
+
+
+    if (!refreshResponse.ok) {
+
+        const text =
+            await refreshResponse.text();
+
+        throw new Error(
+            `Couldn't refresh Twitch token: ${text}`
+        );
+    }
+
+
+    const refreshed =
+        await refreshResponse.json();
+
+
+    const newExpiresAt =
+        new Date(
+            Date.now() +
+            refreshed.expires_in * 1000
+        ).toISOString();
+
+
+    // Save the refreshed Twitch tokens back
+    // into Supabase
+    const {
+        error: updateError
+    } =
+        await supabaseAdmin
+            .from("twitch_auth")
+            .update({
+                access_token:
+                    refreshed.access_token,
+
+                refresh_token:
+                    refreshed.refresh_token,
+
+                expires_at:
+                    newExpiresAt,
+
+                updated_at:
+                    new Date().toISOString()
+            })
+            .eq(
+                "channel_name",
+                CONFIG.personalChannel
+            );
+
+
+    if (updateError) {
+        throw updateError;
+    }
+
+
+    return {
+        ...data,
+
+        access_token:
+            refreshed.access_token,
+
+        refresh_token:
+            refreshed.refresh_token,
+
+        expires_at:
+            newExpiresAt
+    };
+}
+
+// =====================================================
+// TWITCH EVENTSUB
+// =====================================================
+
+let eventSubSocket = null;
+
+
+async function startEventSub() {
+
+    try {
+
+        const auth =
+            await getBroadcasterAuth();
+
+        connectEventSub(
+            "wss://eventsub.wss.twitch.tv/ws",
+            auth,
+            false
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Couldn't start Twitch EventSub:",
+            error
+        );
+    }
+}
+
+function connectEventSub(
+    url,
+    auth,
+    isReconnect = false
+) {
+
+    console.log(
+        "Connecting to Twitch EventSub..."
+    );
+
+
+    const socket =
+        new WebSocket(url);
+
+    eventSubSocket = socket;
+
+
+    socket.on(
+        "message",
+        async rawMessage => {
+
+            try {
+
+                const message =
+                    JSON.parse(
+                        rawMessage.toString()
+                    );
+
+
+                const messageType =
+                    message.metadata
+                        ?.message_type;
+
+
+                // Twitch opened the connection
+                if (
+                    messageType ===
+                    "session_welcome"
+                ) {
+
+                    console.log(
+                        "✅ Twitch EventSub connected."
+                    );
+
+
+                    const sessionId =
+                        message.payload
+                            .session
+                            .id;
+
+
+                    // A brand-new connection needs
+                    // our redemption subscription.
+                    //
+                    // A Twitch-requested reconnect
+                    // keeps the existing subscription.
+                    if (!isReconnect) {
+
+                        await subscribeToRedemptions(
+                            sessionId,
+                            auth
+                        );
+                    }
+
+
+                    return;
+                }
+
+
+                // Twitch sent us an actual event
+                if (
+                    messageType ===
+                    "notification"
+                ) {
+
+                    const subscriptionType =
+                        message.metadata
+                            ?.subscription_type;
+
+
+                    if (
+                        subscriptionType ===
+                        "channel.channel_points_custom_reward_redemption.add"
+                    ) {
+
+                        await handleRewardRedemption(
+                            message.payload.event
+                        );
+                    }
+
+
+                    return;
+                }
+
+
+                // Twitch asks us to move the
+                // connection to another WebSocket
+                if (
+                    messageType ===
+                    "session_reconnect"
+                ) {
+
+                    const reconnectUrl =
+                        message.payload
+                            .session
+                            .reconnect_url;
+
+
+                    console.log(
+                        "Twitch requested EventSub reconnect."
+                    );
+
+
+                    connectEventSub(
+                        reconnectUrl,
+                        auth,
+                        true
+                    );
+
+
+                    return;
+                }
+
+
+                // Twitch revoked the subscription
+                if (
+                    messageType ===
+                    "revocation"
+                ) {
+
+                    console.error(
+                        "⚠️ Twitch revoked EventSub subscription:",
+                        message.payload
+                            ?.subscription
+                            ?.status
+                    );
+                }
+
+
+            } catch (error) {
+
+                console.error(
+                    "EventSub message error:",
+                    error
+                );
+            }
+        }
+    );
+
+
+    socket.on(
+        "error",
+        error => {
+
+            console.error(
+                "Twitch EventSub socket error:",
+                error
+            );
+        }
+    );
+
+
+    socket.on(
+        "close",
+        () => {
+
+            console.log(
+                "Twitch EventSub socket closed."
+            );
+        }
+    );
+}
+
+async function subscribeToRedemptions(
+    sessionId,
+    auth
+) {
+
+    const response =
+        await fetch(
+            "https://api.twitch.tv/helix/eventsub/subscriptions",
+            {
+                method: "POST",
+
+                headers: {
+                    "Client-Id":
+                        process.env.TWITCH_CLIENT_ID,
+
+                    Authorization:
+                        `Bearer ${auth.access_token}`,
+
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body:
+                    JSON.stringify({
+                        type:
+                            "channel.channel_points_custom_reward_redemption.add",
+
+                        version:
+                            "1",
+
+                        condition: {
+                            broadcaster_user_id:
+                                auth.broadcaster_user_id
+                        },
+
+                        transport: {
+                            method:
+                                "websocket",
+
+                            session_id:
+                                sessionId
+                        }
+                    })
+            }
+        );
+
+
+    if (!response.ok) {
+
+        const text =
+            await response.text();
+
+        throw new Error(
+            `Couldn't subscribe to redemptions: ${text}`
+        );
+    }
+
+
+    console.log(
+        "✅ Subscribed to Channel Point redemptions."
+    );
+}
+
+async function handleRewardRedemption(
+    event
+) {
+
+    console.log(
+        `🎁 Reward redeemed: "${event.reward.title}" by ${event.user_name}`
+    );
+
+
+    // Ignore rewards other than Daily Check-In
+    if (
+        event.reward.title !==
+        CONFIG.dailyCheckinRewardTitle
+    ) {
+        return;
+    }
+
+
+    console.log(
+        `💗 DAILY CHECK-IN received from ${event.user_name}`
+    );
+
+    console.log(
+        `Reward ID: ${event.reward.id}`
+    );
+
+    console.log(
+        `Redemption ID: ${event.id}`
+    );
+
+    console.log(
+        `User ID: ${event.user_id}`
+    );
+
+    console.log(
+        `Redeemed at: ${event.redeemed_at}`
+    );
 }
 
 // =====================================================
