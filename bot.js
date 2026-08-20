@@ -350,6 +350,9 @@ async function startBot() {
 
         const username = getDisplayName(tags);
         const accountName = getUsername(tags);
+        
+        const allowOfflineTesting =
+            accountName === CONFIG.botAdmin;
 
         switch (command) {
 
@@ -361,7 +364,8 @@ async function startBot() {
                             cleanChannel,
                             accountName,
                             "inches",
-                            () => randomNumber(1, 20)
+                            () => randomNumber(1, 20),
+                            allowOfflineTesting
                         );
 
                     if (roll.offline) {
@@ -410,7 +414,8 @@ async function startBot() {
                             cleanChannel,
                             accountName,
                             "girth",
-                            () => randomNumber(1, 10)
+                            () => randomNumber(1, 10),
+                            allowOfflineTesting
                         );
 
                     if (roll.offline) {
@@ -472,7 +477,8 @@ async function startBot() {
                             cleanChannel,
                             accountName,
                             "cup",
-                            () => randomChoice(cupSizes)
+                            () => randomChoice(cupSizes),
+                            allowOfflineTesting
                         );
 
                     if (roll.offline) {
@@ -1126,7 +1132,8 @@ async function getOrCreateFunRoll(
     channel,
     username,
     commandName,
-    generateResult
+    generateResult,
+    allowOfflineTesting = false
 ) {
 
     const cleanChannel =
@@ -1143,10 +1150,23 @@ async function getOrCreateFunRoll(
 
     // Channel isn't currently live
     if (!streamId) {
+
+        // Allow ONLY the bot admin to test commands offline
+        if (allowOfflineTesting) {
+            return {
+                offline: false,
+                result: String(generateResult()),
+                isNew: true,
+                offlineTest: true
+            };
+        }
+
+        // Everyone else must wait until the stream is live
         return {
             offline: true,
             result: null,
-            isNew: false
+            isNew: false,
+            offlineTest: false
         };
     }
 
