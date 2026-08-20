@@ -11,6 +11,10 @@
 
     <title>Angel Fun Commands</title>
 
+    <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" 
+    rel="stylesheet"
+    >
+    
     <script src="/socket.io/socket.io.js"></script>
 
     <style>
@@ -29,10 +33,61 @@
 
             background: transparent;
 
-            font-family:
-                Arial,
-                Helvetica,
-                sans-serif;
+            font-family: 'Luckiest Guy', cursive;
+        }
+
+        #commandImage {
+            width: 300px;
+            height: 300px;
+
+            object-fit: contain;
+
+            margin-bottom: 8px;
+
+            filter:
+                drop-shadow(0 0 8px white)
+                drop-shadow(0 0 18px rgba(255, 150, 210, 0.8));
+        }
+
+        /* INCHES */
+
+        #alert.inches-theme {
+            background:
+                linear-gradient(
+                    135deg,
+                    rgba(255, 220, 240, 0.97),
+                    rgba(255, 245, 252, 0.97)
+                );
+
+            border: 4px solid white;
+        }
+
+
+        /* GIRTH */
+
+        #alert.girth-theme {
+            background:
+                linear-gradient(
+                    135deg,
+                    rgba(230, 215, 255, 0.97),
+                    rgba(255, 225, 245, 0.97)
+                );
+
+            border: 4px solid white;
+        }
+
+
+        /* CUP */
+
+        #alert.cup-theme {
+            background:
+                linear-gradient(
+                    135deg,
+                    rgba(255, 205, 230, 0.97),
+                    rgba(255, 240, 250, 0.97)
+                );
+
+            border: 4px solid white;
         }
 
 
@@ -72,7 +127,7 @@
             transform:
                 translateY(50px)
                 scale(0.7);
-
+            position: relative;
             transition:
                 opacity 0.35s ease,
                 transform 0.35s ease;
@@ -90,42 +145,206 @@
 
         #username {
             font-size: 42px;
-            font-weight: bold;
 
-            margin-bottom: 12px;
+            letter-spacing: 2px;
 
             text-shadow:
-                -2px -2px 0 white,
-                2px -2px 0 white,
-                -2px 2px 0 white,
-                2px 2px 0 white;
+                -3px -3px 0 #fff,
+                3px -3px 0 #fff,
+                -3px 3px 0 #fff,
+                3px 3px 0 #fff,
+                0 5px 8px rgba(0, 0, 0, 0.35);
         }
 
 
         #result {
-            font-size: 64px;
-            font-weight: 900;
+            font-size: 70px;
 
-            margin-bottom: 8px;
+            letter-spacing: 3px;
 
             text-shadow:
-                -3px -3px 0 white,
-                3px -3px 0 white,
-                -3px 3px 0 white,
-                3px 3px 0 white;
+                -4px -4px 0 #fff,
+                4px -4px 0 #fff,
+                -4px 4px 0 #fff,
+                4px 4px 0 #fff,
+                0 7px 12px rgba(0, 0, 0, 0.4);
         }
 
 
         #subtitle {
             font-size: 28px;
-            font-weight: bold;
+
+            letter-spacing: 1px;
+
+            text-shadow:
+                -2px -2px 0 #fff,
+                2px -2px 0 #fff,
+                -2px 2px 0 #fff,
+                2px 2px 0 #fff;
+        }
+
+        #username,
+        #result,
+        #subtitle {
+            font-family: 'Luckiest Guy', cursive;
+        }
+
+        /* ================================= */
+        /* GIF MOVEMENT ANIMATIONS            */
+        /* ================================= */
+
+        #commandImage.wiggle {
+            animation: wiggle 0.8s ease;
+        }
+
+        @keyframes wiggle {
+            0% {
+                transform: rotate(0deg) scale(1);
+            }
+
+            20% {
+                transform: rotate(-10deg) scale(1.05);
+            }
+
+            40% {
+                transform: rotate(10deg) scale(1.05);
+            }
+
+            60% {
+                transform: rotate(-7deg) scale(1.03);
+            }
+
+            80% {
+                transform: rotate(7deg) scale(1.03);
+            }
+
+            100% {
+                transform: rotate(0deg) scale(1);
+            }
         }
 
 
-        #emoji {
-            font-size: 55px;
+        #commandImage.spin {
+            animation: spinIn 0.8s cubic-bezier(.2, 1.3, .4, 1);
+        }
 
-            margin-bottom: 10px;
+        @keyframes spinIn {
+            0% {
+                transform:
+                    rotate(-360deg)
+                    scale(0.2);
+            }
+
+            70% {
+                transform:
+                    rotate(15deg)
+                    scale(1.1);
+            }
+
+            100% {
+                transform:
+                    rotate(0deg)
+                    scale(1);
+            }
+        }
+
+
+        #commandImage.bounce {
+            animation: imageBounce 0.8s ease;
+        }
+
+        @keyframes imageBounce {
+            0% {
+                transform:
+                    translateY(-100px)
+                    scale(0.5);
+            }
+
+            60% {
+                transform:
+                    translateY(15px)
+                    scale(1.1);
+            }
+
+            80% {
+                transform:
+                    translateY(-8px)
+                    scale(1.03);
+            }
+
+            100% {
+                transform:
+                    translateY(0)
+                    scale(1);
+            }
+        }
+
+
+        /* ================================= */
+        /* FLOATING DECORATIONS               */
+        /* ================================= */
+
+        .decorations {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .sparkle {
+            position: absolute;
+            font-size: 38px;
+            opacity: 0;
+
+            animation:
+                sparkleFloat 2.5s ease-in-out infinite;
+        }
+
+        .sparkle1 {
+            left: 5%;
+            top: 15%;
+            animation-delay: 0s;
+        }
+
+        .sparkle2 {
+            right: 8%;
+            top: 10%;
+            animation-delay: 0.4s;
+        }
+
+        .sparkle3 {
+            left: 12%;
+            bottom: 10%;
+            animation-delay: 0.8s;
+        }
+
+        .sparkle4 {
+            right: 10%;
+            bottom: 16%;
+            animation-delay: 1.2s;
+        }
+
+        @keyframes sparkleFloat {
+            0% {
+                opacity: 0;
+
+                transform:
+                    translateY(20px)
+                    scale(0.5)
+                    rotate(0deg);
+            }
+
+            40% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+
+                transform:
+                    translateY(-50px)
+                    scale(1.2)
+                    rotate(90deg);
+            }
         }
 
     </style>
@@ -138,7 +357,18 @@
 
         <div id="alert">
 
-            <div id="emoji"></div>
+            <div class="decorations">
+                <span class="sparkle sparkle1">✦</span>
+                <span class="sparkle sparkle2">♡</span>
+                <span class="sparkle sparkle3">✧</span>
+                <span class="sparkle sparkle4">⋆</span>
+            </div>
+
+            <img
+                id="commandImage"
+                src=""
+                alt=""
+            >
 
             <div id="username"></div>
 
@@ -150,121 +380,219 @@
 
     </div>
 
+        <script>
 
-    <script>
+            const params =
+                new URLSearchParams(
+                    window.location.search
+                );
 
-        const params =
-            new URLSearchParams(
-                window.location.search
+            const channel =
+                (params.get("channel") || "")
+                    .replace("#", "")
+                    .toLowerCase();
+
+
+            const socket = io({
+                query: {
+                    channel: channel
+                }
+            });
+
+
+            const alertBox =
+                document.getElementById("alert");
+
+            const commandImage =
+                document.getElementById("commandImage");
+
+            const usernameElement =
+                document.getElementById("username");
+
+            const resultElement =
+                document.getElementById("result");
+
+            const subtitleElement =
+                document.getElementById("subtitle");
+
+
+            /*
+            * Each command gets its own:
+            *
+            * image
+            * animation
+            * theme
+            * result text
+            * subtitle
+            */
+
+            const COMMAND_STYLES = {
+
+                inches: {
+                    image:
+                        "/fun-assets/tapemeasure.gif",
+                    animation:
+                        "wiggle",
+                    theme:
+                        "inches-theme",
+
+                    result:
+                        data =>
+                            `${data.result} INCHES`,
+
+                    subtitle:
+                        "The measurements are in 😳"
+                },
+
+
+                girth: {
+                    image:
+                        "/fun-assets/girthtape.gif",
+
+                    animation:
+                        "spin",
+
+                    theme:
+                        "girth-theme",
+
+                    result:
+                        data =>
+                            `${data.result} INCHES`,
+
+                    subtitle:
+                        "An extremely scientific measurement 💀"
+                },
+
+
+                cup: {
+                    image:
+                        "/fun-assets/cup.gif",
+
+                    animation:
+                        "bounce",
+
+                    theme:
+                        "cup-theme",
+
+                    result:
+                        data =>
+                            `${data.result} CUP`,
+
+                    subtitle:
+                        "The calculator has spoken 🎀"
+                }
+
+            };
+
+
+            let hideTimer = null;
+
+
+            socket.on(
+                "funCommand",
+                data => {
+
+                    const style =
+                        COMMAND_STYLES[data.command];
+
+
+                    /*
+                    * Ignore commands the overlay
+                    * doesn't know about.
+                    */
+
+                    if (!style) {
+                        return;
+                    }
+
+
+                    if (hideTimer) {
+                        clearTimeout(hideTimer);
+                    }
+
+
+                    /*
+                    * Remove previous command styles
+                    */
+
+                    alertBox.classList.remove(
+                        "show",
+                        "inches-theme",
+                        "girth-theme",
+                        "cup-theme"
+                    );
+
+
+                    commandImage.classList.remove(
+                        "bounce",
+                        "wiggle",
+                        "spin"
+                    );
+
+
+                    /*
+                    * Update content
+                    */
+
+                    usernameElement.textContent =
+                        `@${data.username}`;
+
+                    resultElement.textContent =
+                        style.result(data);
+
+                    subtitleElement.textContent =
+                        style.subtitle;
+
+                    commandImage.src =
+                        `${style.image}?t=${Date.now()}`;
+
+                    /*
+                    * Apply this command's theme
+                    */
+
+                    alertBox.classList.add(
+                        style.theme
+                    );
+
+
+                    /*
+                    * Force the browser to restart
+                    * animations even if the same
+                    * command is used twice.
+                    */
+
+                    void alertBox.offsetWidth;
+                    void commandImage.offsetWidth;
+
+
+                    alertBox.classList.add(
+                        "show"
+                    );
+
+                    commandImage.classList.add(
+                        style.animation
+                    );
+
+
+                    /*
+                    * Hide after five seconds
+                    */
+
+                    hideTimer = setTimeout(
+                        () => {
+
+                            alertBox.classList.remove(
+                                "show"
+                            );
+
+                        },
+                        5000
+                    );
+
+                }
             );
 
-        const channel =
-            (
-                params.get("channel") || ""
-            )
-                .replace("#", "")
-                .toLowerCase();
-
-
-        const socket = io({
-            query: {
-                channel: channel
-            }
-        });
-
-
-        const alertBox =
-            document.getElementById("alert");
-
-        const usernameElement =
-            document.getElementById("username");
-
-        const resultElement =
-            document.getElementById("result");
-
-        const subtitleElement =
-            document.getElementById("subtitle");
-
-        const emojiElement =
-            document.getElementById("emoji");
-
-
-        let hideTimer = null;
-
-
-        socket.on(
-            "funCommand",
-            data => {
-
-                if (hideTimer) {
-                    clearTimeout(hideTimer);
-                }
-
-
-                usernameElement.textContent =
-                    `@${data.username}`;
-
-
-                if (data.command === "inches") {
-
-                    emojiElement.textContent =
-                        "📏";
-
-                    resultElement.textContent =
-                        `${data.result} INCHES`;
-
-                    subtitleElement.textContent =
-                        "The measurements are in 😳";
-                }
-
-
-                else if (data.command === "girth") {
-
-                    emojiElement.textContent =
-                        "⭕";
-
-                    resultElement.textContent =
-                        `${data.result} INCHES`;
-
-                    subtitleElement.textContent =
-                        "An absolutely scientific result 💀";
-                }
-
-
-                else if (data.command === "cup") {
-
-                    emojiElement.textContent =
-                        "🎀";
-
-                    resultElement.textContent =
-                        `${data.result} CUP`;
-
-                    subtitleElement.textContent =
-                        "The calculator has spoken ✨";
-                }
-
-
-                alertBox.classList.remove("show");
-
-                void alertBox.offsetWidth;
-
-                alertBox.classList.add("show");
-
-
-                hideTimer = setTimeout(
-                    () => {
-
-                        alertBox.classList.remove(
-                            "show"
-                        );
-
-                    },
-                    5000
-                );
-            }
-        );
-
-    </script>
+</script>
 
 </body>
 

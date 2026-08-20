@@ -424,21 +424,21 @@ async function startBot() {
                             `⭕ @${username}, girth calculations are only available while the stream is live!`
                         );
 
-                        io.to(cleanChannel).emit(
-                            "funCommand",
-                            {
-                                command: "girth",
-                                username: username,
-                                result: roll.result
-                            }
-                        );
-
                         return true;
                     }
 
                     client.say(
                         channel,
                         `⭕ @${username} has a girth of ${roll.result} inches! 💀`
+                    );
+
+                    io.to(cleanChannel).emit(
+                        "funCommand",
+                        {
+                            command: "girth",
+                            username: username,
+                            result: roll.result
+                        }
                     );
 
                 } catch (error) {
