@@ -28,16 +28,72 @@ const CONFIG = {
     discordUrl:
         process.env.DISCORD_URL || "https://discord.gg/HtW7nnDZub",
 
-        dailyCheckinRewardTitle:
-            "💗 Daily Check-In",
-
-        dailyCheckinRewardId:
-            process.env.DAILY_CHECKIN_REWARD_ID,
-
         timezone:
             "Australia/Adelaide",
 
     nextRoundDelay: 5000
+};
+
+const REWARD_IDS = {
+    checkin:
+        process.env.DAILY_CHECKIN_REWARD_ID,
+
+    bonk:
+        process.env.REWARD_BONK_ID,
+
+    purify:
+        process.env.REWARD_PURIFY_ID,
+
+    corrupt:
+        process.env.REWARD_CORRUPT_ID,
+
+    glitter:
+        process.env.REWARD_GLITTER_ID,
+
+    jumpscare1:
+        process.env.REWARD_JUMPSCARE_1_ID,
+
+    jumpscare2:
+        process.env.REWARD_JUMPSCARE_2_ID,
+
+    jumpscare3:
+        process.env.REWARD_JUMPSCARE_3_ID,
+
+    orb:
+        process.env.REWARD_ORB_ID,
+
+    love:
+        process.env.REWARD_LOVE_ID,
+
+    forbidden:
+        process.env.REWARD_FORBIDDEN_ID,
+
+    controller:
+        process.env.REWARD_CONTROLLER_ID,
+
+    skillIssue:
+        process.env.REWARD_SKILL_ISSUE_ID,
+
+    wStreamer:
+        process.env.REWARD_W_STREAMER_ID,
+
+    sus:
+        process.env.REWARD_SUS_ID,
+
+    heart:
+        process.env.REWARD_HEART_ID,
+
+    wtpHint:
+        process.env.REWARD_WTP_HINT_ID,
+
+    wtpGen:
+        process.env.REWARD_WTP_GEN_ID,
+
+    wtpSkip:
+        process.env.REWARD_WTP_SKIP_ID,
+
+    wtpStart:
+        process.env.REWARD_WTP_START_ID
 };
 
 const { createClient } = require("@supabase/supabase-js");
@@ -558,14 +614,22 @@ async function startBot() {
         channels: channels
     });
 
-    client.connect();
+    client.on("connected", () => {
+        channels.forEach(
+            channel =>
+                joinedChannels.add(channel)
+        );
+
+        console.log(
+            "Bot connected to:",
+            [...joinedChannels]
+        );
+    });
+
+
+    await client.connect();
 
     startEventSub();
-
-    client.on("connected", () => {
-        channels.forEach(channel => joinedChannels.add(channel));
-        console.log("Bot connected to:", [...joinedChannels]);
-    });
 
     async function handlePersonalCommand(channel, tags, message) {
 
@@ -1422,6 +1486,8 @@ function connectEventSub(
 
     eventSubSocket = socket;
 
+    let twitchRequestedReconnect = false;
+
 
     socket.on(
         "message",
@@ -1508,6 +1574,8 @@ function connectEventSub(
                     "session_reconnect"
                 ) {
 
+                    twitchRequestedReconnect = true;
+
                     const reconnectUrl =
                         message.payload
                             .session
@@ -1575,6 +1643,25 @@ function connectEventSub(
             console.log(
                 "Twitch EventSub socket closed."
             );
+
+
+            if (
+                !twitchRequestedReconnect &&
+                eventSubSocket === socket
+            ) {
+
+                console.log(
+                    "Unexpected EventSub disconnect. Reconnecting in 5 seconds..."
+                );
+
+
+                setTimeout(
+                    () => {
+                        startEventSub();
+                    },
+                    5000
+                );
+            }
         }
     );
 }
@@ -1642,6 +1729,10 @@ async function subscribeToRedemptions(
     );
 }
 
+// =====================================================
+// REWARD ROUTER
+// =====================================================
+
 async function handleRewardRedemption(
     event
 ) {
@@ -1651,14 +1742,30 @@ async function handleRewardRedemption(
     );
 
 
-    // Ignore every reward except Daily Check-In
-    if (
-        event.reward.id !==
-        CONFIG.dailyCheckinRewardId
-    ) {
-        return;
-    }
+    switch (event.reward.id) {
 
+        case REWARD_IDS.checkin:
+            return handleDailyCheckin(
+                event
+            );
+
+
+        default:
+            console.log(
+                `No handler yet for reward: ${event.reward.title}`
+            );
+
+            return;
+    }
+}
+
+// =====================================================
+// DAILY CHECK-IN
+// =====================================================
+
+async function handleDailyCheckin(
+    event
+) {
 
     try {
 
@@ -1667,7 +1774,6 @@ async function handleRewardRedemption(
                 event.redeemed_at,
                 CONFIG.timezone
             );
-
 
         // -----------------------------------------
         // Has this viewer already checked in today?
@@ -1703,6 +1809,13 @@ async function handleRewardRedemption(
         // Already checked in today
         if (existingCheckin) {
 
+            const streak =
+                await getCheckinStreak(
+                    CONFIG.personalChannel,
+                    event.user_id
+                );
+
+
             console.log(
                 `${event.user_name} already checked in on ${checkinDate}.`
             );
@@ -1710,7 +1823,7 @@ async function handleRewardRedemption(
 
             client.say(
                 CONFIG.personalChannel,
-                `💗 @${event.user_name}, you've already checked in today!`
+                `💗 @${event.user_name}, you've already checked in today! 🔥 Your current streak is ${streak} day${streak === 1 ? "" : "s"}!`
             );
 
 
@@ -1788,9 +1901,15 @@ async function handleRewardRedemption(
         const totalCheckins =
             count || 1;
 
+        const streak =
+            await getCheckinStreak(
+                CONFIG.personalChannel,
+                event.user_id
+            );
+
 
         console.log(
-            `💗 ${event.user_name} completed Daily Check-In #${totalCheckins}`
+            `💗 ${event.user_name} completed Daily Check-In #${totalCheckins} | ${streak}-day streak`
         );
 
 
@@ -1800,7 +1919,7 @@ async function handleRewardRedemption(
 
         client.say(
             CONFIG.personalChannel,
-            `💗 @${event.user_name} checked in for the day! ✨ This is check-in #${totalCheckins}!`
+            `💗 @${event.user_name} checked in! ✨ Check-in #${totalCheckins} • 🔥 ${streak}-day streak!`
         );
 
 
@@ -1820,7 +1939,10 @@ async function handleRewardRedemption(
                     event.user_name,
 
                 result:
-                    totalCheckins
+                    totalCheckins,
+
+                streak:
+                    streak
             }
         );
 
@@ -2004,6 +2126,101 @@ function getDateInTimeZone(
 
 
     return `${year}-${month}-${day}`;
+}
+
+// =====================================================
+// DAILY CHECK-IN HELPERS
+// =====================================================
+
+function previousDateString(
+    dateString
+) {
+
+    const date =
+        new Date(
+            `${dateString}T12:00:00Z`
+        );
+
+
+    date.setUTCDate(
+        date.getUTCDate() - 1
+    );
+
+
+    return date
+        .toISOString()
+        .slice(0, 10);
+}
+
+
+async function getCheckinStreak(
+    channel,
+    userId
+) {
+
+    const {
+        data,
+        error
+    } =
+        await supabaseAdmin
+            .from("daily_checkins")
+            .select("checkin_date")
+            .eq(
+                "channel_name",
+                normalizeChannel(channel)
+            )
+            .eq(
+                "user_id",
+                userId
+            )
+            .order(
+                "checkin_date",
+                {
+                    ascending: false
+                }
+            );
+
+
+    if (error) {
+        throw error;
+    }
+
+
+    if (
+        !data ||
+        data.length === 0
+    ) {
+        return 0;
+    }
+
+
+    let expectedDate =
+        data[0].checkin_date;
+
+    let streak = 0;
+
+
+    for (const row of data) {
+
+        if (
+            row.checkin_date !==
+            expectedDate
+        ) {
+            break;
+        }
+
+
+        streak++;
+
+
+        expectedDate =
+            previousDateString(
+                expectedDate
+            );
+    }
+
+
+    return streak;
 }
 
 // =====================================================
