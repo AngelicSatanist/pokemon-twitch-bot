@@ -347,6 +347,176 @@
             }
         }
 
+    /* ========================================= */
+    /* WHO'S THAT POKÉMON LEADERBOARD            */
+    /* ========================================= */
+
+    #leaderboard {
+
+        position: absolute;
+
+        min-width: 520px;
+        max-width: 750px;
+
+        padding: 30px 45px;
+
+        text-align: center;
+
+        border-radius: 30px;
+
+        background:
+            linear-gradient(
+                135deg,
+                rgba(255, 205, 235, 0.97),
+                rgba(235, 215, 255, 0.97)
+            );
+
+        border: 4px solid white;
+
+        box-shadow:
+            0 0 20px rgba(255, 255, 255, 0.95),
+            0 0 45px rgba(255, 150, 210, 0.85);
+
+        opacity: 0;
+
+        transform:
+            translateY(50px)
+            scale(0.7);
+
+        transition:
+            opacity 0.4s ease,
+            transform 0.4s ease;
+
+        pointer-events: none;
+    }
+
+
+    /* Show leaderboard */
+
+    #leaderboard.show {
+
+        opacity: 1;
+
+        transform:
+            translateY(0)
+            scale(1);
+    }
+
+
+    /* Main title */
+
+    #leaderboardTitle {
+
+        font-family:
+            'Luckiest Guy',
+            cursive;
+
+        font-size: 44px;
+
+        letter-spacing: 2px;
+
+        margin-bottom: 3px;
+
+        text-shadow:
+            -3px -3px 0 white,
+            3px -3px 0 white,
+            -3px 3px 0 white,
+            3px 3px 0 white,
+            0 5px 8px rgba(0, 0, 0, 0.3);
+    }
+
+
+    /* TOP 5 TRAINERS */
+
+    #leaderboardSubtitle {
+
+        font-family:
+            'Luckiest Guy',
+            cursive;
+
+        font-size: 24px;
+
+        margin-bottom: 20px;
+
+        opacity: 0.8;
+    }
+
+
+    /* Player list */
+
+    #leaderboardPlayers {
+
+        display: flex;
+
+        flex-direction: column;
+
+        gap: 10px;
+    }
+
+
+    /* Each leaderboard row */
+
+    .leaderboard-row {
+
+        display: flex;
+
+        align-items: center;
+
+        justify-content: space-between;
+
+        padding: 10px 18px;
+
+        border-radius: 16px;
+
+        background:
+            rgba(
+                255,
+                255,
+                255,
+                0.65
+            );
+
+        font-family:
+            'Luckiest Guy',
+            cursive;
+
+        font-size: 27px;
+
+        text-shadow:
+            1px 1px 0 white;
+    }
+
+
+    /* Position number */
+
+    .leaderboard-rank {
+
+        width: 55px;
+
+        text-align: left;
+
+        font-size: 31px;
+    }
+
+
+    /* Username */
+
+    .leaderboard-name {
+
+        flex: 1;
+
+        text-align: left;
+    }
+
+
+    /* Points */
+
+    .leaderboard-points {
+
+        text-align: right;
+
+        white-space: nowrap;
+    }
     </style>
 </head>
 
@@ -375,11 +545,31 @@
 
             <div id="subtitle"></div>
 
-        </div>
+                </div>
 
-    </div>
 
-        <script>
+                <!-- ================================= -->
+                <!-- WTP LEADERBOARD                  -->
+                <!-- ================================= -->
+
+                <div id="leaderboard">
+
+                    <div id="leaderboardTitle">
+                        🏆 WHO'S THAT POKÉMON 🏆
+                    </div>
+
+                    <div id="leaderboardSubtitle">
+                        TOP 5 TRAINERS
+                    </div>
+
+                    <div id="leaderboardPlayers"></div>
+
+                </div>
+
+
+            </div>
+
+            <script>
 
             const params =
                 new URLSearchParams(
@@ -424,6 +614,18 @@
             * result text
             * subtitle
             */
+
+            const leaderboardElement =
+                document.getElementById(
+                    "leaderboard"
+                );
+
+            const leaderboardPlayersElement =
+                document.getElementById(
+                    "leaderboardPlayers"
+                );
+
+            let leaderboardTimer = null;
 
             const COMMAND_STYLES = {
 
@@ -666,6 +868,127 @@
                     ALERT_GAP
                 );
             }
+
+// =========================================
+// WTP LEADERBOARD DISPLAY
+// =========================================
+
+socket.on(
+    "showLeaderboard",
+    data => {
+
+        const players =
+            data.players || [];
+
+
+        // Clear any previous leaderboard rows
+        leaderboardPlayersElement.innerHTML =
+            "";
+
+
+        // Medal/icon for each place
+        const rankIcons = [
+            "🥇",
+            "🥈",
+            "🥉",
+            "4.",
+            "5."
+        ];
+
+
+        players.forEach(
+            (player, index) => {
+
+                const row =
+                    document.createElement(
+                        "div"
+                    );
+
+                row.className =
+                    "leaderboard-row";
+
+
+                const rank =
+                    document.createElement(
+                        "div"
+                    );
+
+                rank.className =
+                    "leaderboard-rank";
+
+                rank.textContent =
+                    rankIcons[index] ||
+                    `${index + 1}.`;
+
+
+                const name =
+                    document.createElement(
+                        "div"
+                    );
+
+                name.className =
+                    "leaderboard-name";
+
+                name.textContent =
+                    `@${player.username}`;
+
+
+                const points =
+                    document.createElement(
+                        "div"
+                    );
+
+                points.className =
+                    "leaderboard-points";
+
+                points.textContent =
+                    `${player.points} ${
+                        player.points === 1
+                            ? "POINT"
+                            : "POINTS"
+                    }`;
+
+
+                row.appendChild(rank);
+                row.appendChild(name);
+                row.appendChild(points);
+
+                leaderboardPlayersElement
+                    .appendChild(row);
+            }
+        );
+
+
+        // Restart timer if someone
+        // uses !wtplb again
+        if (leaderboardTimer) {
+
+            clearTimeout(
+                leaderboardTimer
+            );
+        }
+
+
+        // Show leaderboard
+        leaderboardElement
+            .classList
+            .add("show");
+
+
+        // Keep it visible for 15 seconds
+        leaderboardTimer =
+            setTimeout(
+                () => {
+
+                    leaderboardElement
+                        .classList
+                        .remove("show");
+
+                },
+                data.duration || 15000
+            );
+    }
+);
 
 </script>
 

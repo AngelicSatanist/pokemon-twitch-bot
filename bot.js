@@ -1808,6 +1808,17 @@ async function startBot() {
             `🏆 Who's That Pokémon Top 5 🏆 | ${leaderboardText}`
         );
 
+
+        // Send leaderboard to the fun overlay
+        io.to(replyChannel).emit(
+            "showLeaderboard",
+            {
+                players: topPlayers,
+                duration: 10000
+            }
+        );
+
+
         return;
     }
 
@@ -2511,7 +2522,7 @@ async function handleRewardRedemption(
 ) {
 
     console.log(
-        `🎁 Reward redeemed: "${event.reward.title}" | ID: ${event.reward.id} | by ${event.user_name}`
+        `🎁 Reward redeemed: "${event.reward.title}" | by ${event.user_name}`
     );
 
 
