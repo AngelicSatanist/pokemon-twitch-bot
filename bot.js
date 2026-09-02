@@ -1253,22 +1253,140 @@ function canUseCommand(requiredPermission, channel, tags) {
 }
 
 function normalizePokemonName(name) {
-    return String(name || "")
-        .toLowerCase()
 
-        // Turn accented letters into normal letters
-        // e.g. Flabébé -> flabebe
+    let cleanedName =
+        String(name || "")
+            .toLowerCase()
+            .trim();
+
+
+    // =========================================
+    // REMOVE POKÉMON FORM / GENDER SUFFIXES
+    // =========================================
+
+    const formSuffixes = [
+        "-male",
+        "-female",
+        "-full",
+        "-hangry",
+
+        "-normal",
+        "-attack",
+        "-defense",
+        "-speed",
+
+        "-altered",
+        "-origin",
+
+        "-land",
+        "-sky",
+
+        "-ordinary",
+        "-resolute",
+
+        "-aria",
+        "-pirouette",
+
+        "-incarnate",
+        "-therian",
+
+        "-red-striped",
+        "-blue-striped",
+        "-white-striped",
+
+        "-average",
+        "-small",
+        "-large",
+        "-super",
+
+        "-baile",
+        "-pom-pom",
+        "-pau",
+        "-sensu",
+
+        "-midday",
+        "-midnight",
+        "-dusk",
+
+        "-amped",
+        "-low-key",
+
+        "-ice",
+        "-noice",
+
+        "-solo",
+        "-school",
+
+        "-disguised",
+        "-busted",
+
+        "-meteor",
+        "-core",
+
+        "-gulping",
+        "-gorging",
+
+        "-curly",
+        "-droopy",
+        "-stretchy",
+
+        "-zero",
+        "-hero",
+
+        "-roaming",
+        "-chest",
+
+        "-family-of-three",
+        "-family-of-four"
+    ];
+
+
+    for (const suffix of formSuffixes) {
+
+        if (cleanedName.endsWith(suffix)) {
+
+            cleanedName =
+                cleanedName.slice(
+                    0,
+                    -suffix.length
+                );
+
+            break;
+        }
+    }
+
+
+    // =========================================
+    // NORMALISE PLAYER INPUT
+    // =========================================
+
+    return cleanedName
+
+        // é etc → e
         .normalize("NFD")
         .replace(/\p{Diacritic}/gu, "")
 
-        // Make Nidoran gender names easier
-        .replace(/♀/g, "f")
-        .replace(/♂/g, "m")
-        .replace(/\bfemale\b/g, "f")
-        .replace(/\bmale\b/g, "m")
+        // Nidoran symbols
+        .replace(/♀/g, "")
+        .replace(/♂/g, "")
 
-        // Remove ALL spaces and punctuation
+        // Remove punctuation and spaces
         .replace(/[^a-z0-9]/g, "");
+}
+
+function getBasePokemonDisplayName(pokemon) {
+
+    const name =
+        pokemon.displayName ||
+        pokemon.name ||
+        "";
+
+    return name
+        .replace(/[- ]male$/i, "")
+        .replace(/[- ]female$/i, "")
+        .replace(/[- ]full$/i, "")
+        .replace(/[- ]hangry$/i, "")
+        .trim();
 }
 
 function createPokemonHint(name, lettersToReveal) {
