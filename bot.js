@@ -490,9 +490,92 @@ function stopGame(channel) {
     io.to(channel).emit("clearPokemon");
 }
 
+const POKEMON_NAME_OVERRIDES = {
+
+    29:  { name: "nidoran", displayName: "Nidoran" },
+    32:  { name: "nidoran", displayName: "Nidoran" },
+
+    386: { name: "deoxys", displayName: "Deoxys" },
+    413: { name: "wormadam", displayName: "Wormadam" },
+    487: { name: "giratina", displayName: "Giratina" },
+    492: { name: "shaymin", displayName: "Shaymin" },
+    550: { name: "basculin", displayName: "Basculin" },
+    555: { name: "darmanitan", displayName: "Darmanitan" },
+
+    592: { name: "frillish", displayName: "Frillish" },
+    593: { name: "jellicent", displayName: "Jellicent" },
+
+    641: { name: "tornadus", displayName: "Tornadus" },
+    642: { name: "thundurus", displayName: "Thundurus" },
+    645: { name: "landorus", displayName: "Landorus" },
+
+    647: { name: "keldeo", displayName: "Keldeo" },
+    648: { name: "meloetta", displayName: "Meloetta" },
+
+    668: { name: "pyroar", displayName: "Pyroar" },
+    678: { name: "meowstic", displayName: "Meowstic" },
+    681: { name: "aegislash", displayName: "Aegislash" },
+
+    710: { name: "pumpkaboo", displayName: "Pumpkaboo" },
+    711: { name: "gourgeist", displayName: "Gourgeist" },
+
+    718: { name: "zygarde", displayName: "Zygarde" },
+
+    741: { name: "oricorio", displayName: "Oricorio" },
+    745: { name: "lycanroc", displayName: "Lycanroc" },
+    746: { name: "wishiwashi", displayName: "Wishiwashi" },
+
+    774: { name: "minior", displayName: "Minior" },
+    778: { name: "mimikyu", displayName: "Mimikyu" },
+
+    849: { name: "toxtricity", displayName: "Toxtricity" },
+
+    875: { name: "eiscue", displayName: "Eiscue" },
+    876: { name: "indeedee", displayName: "Indeedee" },
+    877: { name: "morpeko", displayName: "Morpeko" },
+
+    892: { name: "urshifu", displayName: "Urshifu" },
+
+    902: { name: "basculegion", displayName: "Basculegion" },
+    905: { name: "enamorus", displayName: "Enamorus" },
+
+    916: { name: "oinkologne", displayName: "Oinkologne" },
+
+    925: { name: "maushold", displayName: "Maushold" },
+    931: { name: "squawkabilly", displayName: "Squawkabilly" },
+
+    964: { name: "palafin", displayName: "Palafin" },
+    978: { name: "tatsugiri", displayName: "Tatsugiri" },
+    982: { name: "dudunsparce", displayName: "Dudunsparce" }
+
+};
+
 function getRandomPokemon() {
-    const randomIndex = Math.floor(Math.random() * pokemonList.length);
-    return pokemonList[randomIndex];
+
+    const randomIndex =
+        Math.floor(
+            Math.random() * pokemonList.length
+        );
+
+    const pokemon =
+        pokemonList[randomIndex];
+
+    const override =
+        POKEMON_NAME_OVERRIDES[pokemon.id];
+
+
+    // Normal Pokémon - return unchanged
+    if (!override) {
+        return pokemon;
+    }
+
+
+    // Pokémon whose JSON name contains
+    // an unwanted form/gender descriptor
+    return {
+        ...pokemon,
+        ...override
+    };
 }
 
 function startNewRound(channel) {
@@ -597,6 +680,277 @@ async function getTopFive(channel) {
     return data;
 }
 
+// =====================================================
+// EXTRA FUN COMMAND CONFIG
+// =====================================================
+
+
+// -----------------------------------------------------
+// SAVED PER-STREAM STATS
+// -----------------------------------------------------
+
+const SAVED_STAT_COMMANDS = {
+
+    chaos: {
+        format: (username, value) =>
+            `✨ @${username}'s chaos level this stream is ${value}%!`
+    },
+
+    feral: {
+        format: (username, value) =>
+            `🐀 @${username} is ${value}% feral today.`
+    },
+
+    delulu: {
+        format: (username, value) =>
+            `🫠 @${username} is ${value}% delulu this stream.`
+    },
+
+    luck: {
+        format: (username, value) =>
+            `🍀 @${username}'s luck today is ${value}%!`
+    },
+
+    evil: {
+        format: (username, value) =>
+            `😈 @${username} is ${value}% evil today.`
+    },
+
+    angel: {
+        format: (username, value) =>
+            `😇 @${username} is ${value}% angel today.`
+    },
+
+    sus: {
+        format: (username, value) =>
+            `👀 @${username} is ${value}% suspicious.`
+    },
+
+    smart: {
+        format: (username, value) =>
+            `🧠 @${username}'s brain power is operating at ${value}% today.`
+    },
+
+    cute: {
+        format: (username, value) =>
+            `🎀 @${username} is ${value}% cute today!`
+    },
+
+    sleepy: {
+        format: (username, value) =>
+            `😴 @${username} is ${value}% sleepy right now.`
+    },
+
+    vibe: {
+        format: (username, value) =>
+            `💫 @${username}'s vibe rating is ${value}%!`
+    },
+
+    alignment: {
+        format: (username, value) =>
+            `⚖️ @${username} is ${value}% angel 😇 and ${100 - value}% demon 😈 today.`
+    }
+};
+
+
+// -----------------------------------------------------
+// RANDOM TEXT LISTS
+// -----------------------------------------------------
+
+const EIGHT_BALL_RESPONSES = [
+    "Absolutely.",
+    "Absolutely not 💀",
+    "The spirits say yes.",
+    "The spirits say GIRL NO.",
+    "Ask me again when Mercury isn't doing whatever the fuck it's doing.",
+    "Signs point to yes.",
+    "Signs point to disaster.",
+    "I wouldn't risk it.",
+    "Fuck around and find out.",
+    "Probably?",
+    "Unclear. Try screaming.",
+    "Without a doubt.",
+    "Not in this economy.",
+    "The answer is hidden from you 👁️",
+    "Sure, why the hell not?"
+];
+
+
+const FORTUNES = [
+    "You will find money in an unexpected place.",
+    "A questionable decision will somehow work out.",
+    "You will encounter a suspiciously friendly animal.",
+    "Your next snack will be immaculate.",
+    "Someone is about to enable your bad decisions.",
+    "You will survive today entirely out of spite.",
+    "A minor inconvenience will become unnecessarily dramatic.",
+    "The universe recommends a little treat.",
+    "Something you lost will appear immediately after you stop looking for it.",
+    "Your future contains chaos, snacks, and questionable choices."
+];
+
+
+const DEATH_MESSAGES = [
+    "tried to pet an animal that very clearly said no.",
+    "forgot that gravity exists.",
+    "lost a fight with a revolving door.",
+    "was taken out by emotional damage.",
+    "clicked a suspicious link marked FREE ROBUX.",
+    "died doing what they loved: making terrible decisions.",
+    "challenged a goose and immediately regretted it.",
+    "was defeated by one singular LEGO brick.",
+    "forgot to save before the boss fight.",
+    "said 'what could possibly go wrong?' and found out.",
+    "was crushed under the weight of their own audacity.",
+    "perished after staying up for 'just one more game'."
+];
+
+
+const CURSES = [
+    "their socks will always feel slightly damp.",
+    "their charger will only work at one very specific angle.",
+    "every fitted sheet they touch will fight back.",
+    "they will forget why they walked into the next room.",
+    "their next sneeze will disappear right before it happens.",
+    "their pillow will always be warm on both sides.",
+    "they will step on one mysterious crumb while barefoot.",
+    "their food will become cold the second they sit down.",
+    "they will always pick the slowest checkout line.",
+    "their headphones will snag on absolutely everything."
+];
+
+
+const SINS = [
+    "Pride 👑",
+    "Greed 💰",
+    "Lust 💋",
+    "Envy 👀",
+    "Gluttony 🍰",
+    "Wrath 🔥",
+    "Sloth 😴"
+];
+
+
+// -----------------------------------------------------
+// TARGET COMMANDS
+// -----------------------------------------------------
+
+const TARGET_ACTION_COMMANDS = {
+
+    bonk: (username, target) =>
+        `🔨 @${username} BONKS ${target} directly on the head!`,
+
+    kiss: (username, target) =>
+        `💋 @${username} gives ${target} a lil kiss!`,
+
+    pat: (username, target) =>
+        `💕 @${username} gives ${target} some headpats!`,
+
+    bite: (username, target) =>
+        `🦷 @${username} takes a CHOMP out of ${target}!`,
+
+    boop: (username, target) =>
+        `👉 @${username} boops ${target} on the nose!`,
+
+    slap: (username, target) =>
+        `🖐️ @${username} dramatically slaps ${target}!`,
+
+    throw: (username, target) =>
+        `💨 @${username} picks up ${target} and YEETS them into the void!`,
+
+    adopt: (username, target) =>
+        `🍼 @${username} has officially adopted ${target}. No refunds.`,
+
+    marry: (username, target) =>
+        `💍 @${username} has proposed to ${target}! Twitch chat is legally the witness.`,
+
+    divorce: (username, target) =>
+        `💔 @${username} has filed for divorce from ${target}. The custody battle over the emotes begins now.`,
+
+    blessing: (username, target) =>
+        `✨ @${username} has blessed ${target} with suspiciously good luck.`,
+
+    curse: (username, target) =>
+        `🔮 @${username} cursed ${target}: ${randomChoice(CURSES)}`,
+
+    sacrifice: (username, target) =>
+        `🕯️ @${username} has sacrificed ${target} to appease the Twitch algorithm.`
+};
+
+
+// -----------------------------------------------------
+// SAVED STAT HANDLER
+// -----------------------------------------------------
+
+async function runSavedStatCommand(
+    channel,
+    cleanChannel,
+    accountName,
+    username,
+    command,
+    allowOfflineTesting
+) {
+
+    const config =
+        SAVED_STAT_COMMANDS[command];
+
+    if (!config) {
+        return false;
+    }
+
+
+    try {
+
+        const roll =
+            await getOrCreateFunRoll(
+                cleanChannel,
+                accountName,
+                command,
+                () => randomNumber(0, 100),
+                allowOfflineTesting
+            );
+
+
+        if (roll.offline) {
+
+            client.say(
+                channel,
+                `💗 @${username}, your ${command} result can only be calculated while the stream is live!`
+            );
+
+            return true;
+        }
+
+
+        const value =
+            Number(roll.result);
+
+
+        client.say(
+            channel,
+            config.format(
+                username,
+                value
+            )
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            `!${command} error:`,
+            error
+        );
+
+        client.say(
+            channel,
+            `Something broke while calculating @${username}'s ${command} result 💀`
+        );
+    }
+
+
+    return true;
+}
 
 async function startBot() {
     const channels = await loadChannelsFromSupabase();
@@ -657,6 +1011,59 @@ async function startBot() {
         
         const allowOfflineTesting =
             accountName === CONFIG.botAdmin;
+
+
+        // =====================================================
+        // SAVED STAT COMMANDS
+        // =====================================================
+
+        if (
+            await runSavedStatCommand(
+                channel,
+                cleanChannel,
+                accountName,
+                username,
+                command,
+                allowOfflineTesting
+            )
+        ) {
+            return true;
+        }
+
+
+        // =====================================================
+        // TARGET ACTION COMMANDS
+        // =====================================================
+
+        if (TARGET_ACTION_COMMANDS[command]) {
+
+            const target =
+                args.join(" ").trim();
+
+
+            if (!target) {
+
+                client.say(
+                    channel,
+                    `@${username}, you need to tell me who to ${command}!`
+                );
+
+                return true;
+            }
+
+
+            client.say(
+                channel,
+                TARGET_ACTION_COMMANDS[command](
+                    username,
+                    target
+                )
+            );
+
+
+            return true;
+        }
+
 
         switch (command) {
 
@@ -822,6 +1229,399 @@ async function startBot() {
 
                 return true;
             }
+
+            // =====================================================
+            // QUICK RANDOM COMMANDS
+            // =====================================================
+
+
+            case "coinflip":
+            case "coin": {
+
+                const result =
+                    randomChoice([
+                        "HEADS",
+                        "TAILS"
+                    ]);
+
+
+                client.say(
+                    channel,
+                    `🪙 @${username} flipped ${result}!`
+                );
+
+
+                return true;
+            }
+
+
+            // -----------------------------------------------------
+
+
+            case "dice":
+            case "roll": {
+
+                const result =
+                    randomNumber(1, 6);
+
+
+                client.say(
+                    channel,
+                    `🎲 @${username} rolled a ${result}!`
+                );
+
+
+                return true;
+            }
+
+
+            // -----------------------------------------------------
+
+
+            case "8ball": {
+
+                const question =
+                    args.join(" ").trim();
+
+
+                if (!question) {
+
+                    client.say(
+                        channel,
+                        `🎱 @${username}, ask me a question! Example: !8ball will I win today?`
+                    );
+
+                    return true;
+                }
+
+
+                const answer =
+                    randomChoice(
+                        EIGHT_BALL_RESPONSES
+                    );
+
+
+                client.say(
+                    channel,
+                    `🎱 @${username}: ${answer}`
+                );
+
+
+                return true;
+            }
+
+
+            // -----------------------------------------------------
+
+
+            case "rate": {
+
+                const thing =
+                    args.join(" ").trim();
+
+
+                if (!thing) {
+
+                    client.say(
+                        channel,
+                        `⭐ @${username}, tell me what you want me to rate!`
+                    );
+
+                    return true;
+                }
+
+
+                const rating =
+                    randomNumber(0, 10);
+
+
+                client.say(
+                    channel,
+                    `⭐ @${username}, I give ${thing} a ${rating}/10.`
+                );
+
+
+                return true;
+            }
+
+
+            // -----------------------------------------------------
+
+
+            case "choose":
+            case "pick": {
+
+                const rawOptions =
+                    args.join(" ").trim();
+
+
+                if (!rawOptions) {
+
+                    client.say(
+                        channel,
+                        `🤔 @${username}, give me some choices! Example: !choose pizza | tacos | noodles`
+                    );
+
+                    return true;
+                }
+
+
+                let options;
+
+
+                if (rawOptions.includes("|")) {
+
+                    options =
+                        rawOptions
+                            .split("|")
+                            .map(option =>
+                                option.trim()
+                            )
+                            .filter(Boolean);
+
+                } else {
+
+                    options =
+                        args.filter(Boolean);
+                }
+
+
+                if (options.length < 2) {
+
+                    client.say(
+                        channel,
+                        `🤔 @${username}, I need at least two things to choose between!`
+                    );
+
+                    return true;
+                }
+
+
+                const choice =
+                    randomChoice(options);
+
+
+                client.say(
+                    channel,
+                    `👉 @${username}, I choose: ${choice}!`
+                );
+
+
+                return true;
+            }
+
+
+            // -----------------------------------------------------
+
+
+            case "fight": {
+
+                const target =
+                    args.join(" ")
+                        .trim()
+                        .replace(/^@/, "");
+
+
+                if (!target) {
+
+                    client.say(
+                        channel,
+                        `⚔️ @${username}, who are you trying to fight?!`
+                    );
+
+                    return true;
+                }
+
+
+                const winner =
+                    randomChoice([
+                        username,
+                        target
+                    ]);
+
+
+                client.say(
+                    channel,
+                    `⚔️ @${username} challenges @${target} to a fight... 💥 @${winner} WINS!`
+                );
+
+
+                return true;
+            }
+
+
+            // -----------------------------------------------------
+
+
+            case "ship": {
+
+                if (args.length === 0) {
+
+                    client.say(
+                        channel,
+                        `💞 @${username}, give me someone to ship you with!`
+                    );
+
+                    return true;
+                }
+
+
+                let personOne;
+                let personTwo;
+
+
+                if (args.length === 1) {
+
+                    personOne =
+                        username;
+
+                    personTwo =
+                        args[0]
+                            .replace(/^@/, "");
+
+                } else {
+
+                    personOne =
+                        args[0]
+                            .replace(/^@/, "");
+
+                    personTwo =
+                        args[1]
+                            .replace(/^@/, "");
+                }
+
+
+                const compatibility =
+                    randomNumber(0, 100);
+
+
+                let verdict;
+
+
+                if (compatibility >= 90) {
+                    verdict = "SOULMATES 💍";
+                }
+
+                else if (compatibility >= 70) {
+                    verdict = "It's looking GOOD 👀";
+                }
+
+                else if (compatibility >= 50) {
+                    verdict = "There's potential 💕";
+                }
+
+                else if (compatibility >= 25) {
+                    verdict = "Maybe stay friends 😭";
+                }
+
+                else {
+                    verdict = "ABSOLUTELY NOT 💀";
+                }
+
+
+                client.say(
+                    channel,
+                    `💞 @${personOne} + @${personTwo} = ${compatibility}% compatible! ${verdict}`
+                );
+
+
+                return true;
+            }
+
+
+            // -----------------------------------------------------
+
+
+            case "death": {
+
+                const death =
+                    randomChoice(
+                        DEATH_MESSAGES
+                    );
+
+
+                client.say(
+                    channel,
+                    `💀 @${username} ${death}`
+                );
+
+
+                return true;
+            }
+
+
+            // -----------------------------------------------------
+
+
+            case "fortune": {
+
+                const fortune =
+                    randomChoice(
+                        FORTUNES
+                    );
+
+
+                client.say(
+                    channel,
+                    `🔮 @${username}: ${fortune}`
+                );
+
+
+                return true;
+            }
+
+
+            // -----------------------------------------------------
+
+
+            case "sin": {
+
+                const sin =
+                    randomChoice(
+                        SINS
+                    );
+
+
+                client.say(
+                    channel,
+                    `🔥 @${username}'s deadly sin today is ${sin}!`
+                );
+
+
+                return true;
+            }
+
+
+            // -----------------------------------------------------
+
+
+            case "ascend": {
+
+                const messages = [
+
+                    `✨ @${username} has ascended beyond mortal comprehension.`,
+
+                    `👁️ @${username} has seen beyond the veil. There is no going back.`,
+
+                    `🪽 @${username} is ascending... someone grab their ankle!`,
+
+                    `🌟 @${username} has transcended Twitch chat.`,
+
+                    `😇 @${username} has been promoted to biblically accurate chat member.`,
+
+                    `🔥 @${username} tried to ascend but accidentally went the other direction.`
+                ];
+
+
+                client.say(
+                    channel,
+                    randomChoice(messages)
+                );
+
+
+                return true;
+            }
+
             case "so":
             case "shoutout": {
 
@@ -870,10 +1670,22 @@ async function startBot() {
 
 
             case "commands":
+
                 client.say(
                     channel,
-                    `Commands: !hello | !lurk | !discord | !hug | !inches | !girth | !cup`
+                    `💗 Basics: !hello | !lurk | !discord | !hug | !inches | !girth | !cup`
                 );
+
+                client.say(
+                    channel,
+                    `🎲 Fun: !chaos | !feral | !delulu | !luck | !evil | !angel | !sus | !smart | !cute | !sleepy | !vibe | !alignment | !8ball | !coinflip | !dice | !rate | !choose | !fight | !ship | !death | !fortune | !sin`
+                );
+
+                client.say(
+                    channel,
+                    `💥 Actions: !bonk | !kiss | !pat | !bite | !boop | !slap | !throw | !adopt | !marry | !divorce | !blessing | !curse | !sacrifice | !ascend`
+                );
+
                 return true;
 
 
@@ -1011,27 +1823,9 @@ async function startBot() {
         }
 
         if (msg === "!wtpgen") {
-            if (!game.gameActive || !game.currentPokemon) {
-                client.say(
-                    replyChannel,
-                    "There is no active Pokémon round."
-                );
-                return;
-            }
 
-            const generation = game.currentPokemon.generation;
-
-            if (!generation) {
-                client.say(
-                    replyChannel,
-                    "Generation information is unavailable for this Pokémon."
-                );
-                return;
-            }
-
-            client.say(
-                replyChannel,
-                `The current Pokémon is from Gen ${generation}.`
+            await sendWtpGeneration(
+                replyChannel
             );
 
             return;
@@ -1087,35 +1881,9 @@ async function startBot() {
         }
 
         if (msg === "!wtphint") {
-            if (!game.gameActive || !game.currentPokemon) {
-                client.say(
-                    replyChannel,
-                    "There is no active Pokémon round to give a hint for."
-                );
-                return;
-            }
 
-            const pokemonName = game.currentPokemon.displayName;
-            const totalLetters = pokemonName.replace(/[^a-zA-Z0-9]/g, "").length;
-
-            if (game.hintLettersRevealed >= totalLetters) {
-                client.say(
-                    replyChannel,
-                    `The full name has already been revealed: ${pokemonName}`
-                );
-                return;
-            }
-
-            game.hintLettersRevealed++;
-
-            const hint = createPokemonHint(
-                pokemonName,
-                game.hintLettersRevealed
-            );
-
-            client.say(
-                replyChannel,
-                `🔎 Hint: ${hint}`
+            await sendWtpHint(
+                replyChannel
             );
 
             return;
@@ -1254,139 +2022,16 @@ function canUseCommand(requiredPermission, channel, tags) {
 
 function normalizePokemonName(name) {
 
-    let cleanedName =
-        String(name || "")
-            .toLowerCase()
-            .trim();
+    return String(name || "")
+        .toLowerCase()
 
-
-    // =========================================
-    // REMOVE POKÉMON FORM / GENDER SUFFIXES
-    // =========================================
-
-    const formSuffixes = [
-        "-male",
-        "-female",
-        "-full",
-        "-hangry",
-
-        "-normal",
-        "-attack",
-        "-defense",
-        "-speed",
-
-        "-altered",
-        "-origin",
-
-        "-land",
-        "-sky",
-
-        "-ordinary",
-        "-resolute",
-
-        "-aria",
-        "-pirouette",
-
-        "-incarnate",
-        "-therian",
-
-        "-red-striped",
-        "-blue-striped",
-        "-white-striped",
-
-        "-average",
-        "-small",
-        "-large",
-        "-super",
-
-        "-baile",
-        "-pom-pom",
-        "-pau",
-        "-sensu",
-
-        "-midday",
-        "-midnight",
-        "-dusk",
-
-        "-amped",
-        "-low-key",
-
-        "-ice",
-        "-noice",
-
-        "-solo",
-        "-school",
-
-        "-disguised",
-        "-busted",
-
-        "-meteor",
-        "-core",
-
-        "-gulping",
-        "-gorging",
-
-        "-curly",
-        "-droopy",
-        "-stretchy",
-
-        "-zero",
-        "-hero",
-
-        "-roaming",
-        "-chest",
-
-        "-family-of-three",
-        "-family-of-four"
-    ];
-
-
-    for (const suffix of formSuffixes) {
-
-        if (cleanedName.endsWith(suffix)) {
-
-            cleanedName =
-                cleanedName.slice(
-                    0,
-                    -suffix.length
-                );
-
-            break;
-        }
-    }
-
-
-    // =========================================
-    // NORMALISE PLAYER INPUT
-    // =========================================
-
-    return cleanedName
-
-        // é etc → e
+        // é -> e, etc.
         .normalize("NFD")
         .replace(/\p{Diacritic}/gu, "")
 
-        // Nidoran symbols
-        .replace(/♀/g, "")
-        .replace(/♂/g, "")
-
-        // Remove punctuation and spaces
+        // Ignore spaces, punctuation,
+        // apostrophes, hyphens, periods, etc.
         .replace(/[^a-z0-9]/g, "");
-}
-
-function getBasePokemonDisplayName(pokemon) {
-
-    const name =
-        pokemon.displayName ||
-        pokemon.name ||
-        "";
-
-    return name
-        .replace(/[- ]male$/i, "")
-        .replace(/[- ]female$/i, "")
-        .replace(/[- ]full$/i, "")
-        .replace(/[- ]hangry$/i, "")
-        .trim();
 }
 
 function createPokemonHint(name, lettersToReveal) {
@@ -1866,7 +2511,7 @@ async function handleRewardRedemption(
 ) {
 
     console.log(
-        `🎁 Reward redeemed: "${event.reward.title}" by ${event.user_name}`
+        `🎁 Reward redeemed: "${event.reward.title}" | ID: ${event.reward.id} | by ${event.user_name}`
     );
 
 
@@ -1949,6 +2594,20 @@ async function handleRewardRedemption(
                 2500
             );
 
+            case REWARD_IDS.wtpHint:
+
+                return sendWtpHint(
+                    CONFIG.personalChannel,
+                    event.user_name
+                );
+
+
+            case REWARD_IDS.wtpGen:
+
+                return sendWtpGeneration(
+                    CONFIG.personalChannel,
+                    event.user_name
+                );
 
         default:
             console.log(
@@ -2641,13 +3300,161 @@ async function getOrCreateFunRoll(
 
 const POKEMON_COMMAND_PERMISSIONS = {
     "!wtplb": "viewer",
-    "!wtpgen": "viewer",
-    "!wtphint": "viewer",
+
+    "!wtpgen": "moderator",
+    "!wtphint": "moderator",
 
     "!wtpstart": "moderator",
     "!wtpstop": "moderator",
     "!wtpskip": "moderator",
     "!wtprefresh": "moderator"
 };
+
+// =====================================================
+// WHO'S THAT POKÉMON SHARED ACTIONS
+// =====================================================
+
+async function sendWtpGeneration(
+    channel,
+    redeemedBy = null
+) {
+
+    const cleanChannel =
+        normalizeChannel(channel);
+
+    const game =
+        getGame(cleanChannel);
+
+
+    if (
+        !game.gameActive ||
+        !game.currentPokemon
+    ) {
+
+        await client.say(
+            cleanChannel,
+            redeemedBy
+                ? `@${redeemedBy}, there is no active Pokémon round right now.`
+                : "There is no active Pokémon round."
+        );
+
+        return;
+    }
+
+
+    const generation =
+        game.currentPokemon.generation;
+
+
+    if (!generation) {
+
+        await client.say(
+            cleanChannel,
+            "Generation information is unavailable for this Pokémon."
+        );
+
+        return;
+    }
+
+
+    if (redeemedBy) {
+
+        await client.say(
+            cleanChannel,
+            `🧬 @${redeemedBy} redeemed a generation reveal! The current Pokémon is from Gen ${generation}.`
+        );
+
+    } else {
+
+        await client.say(
+            cleanChannel,
+            `The current Pokémon is from Gen ${generation}.`
+        );
+    }
+}
+
+
+// -----------------------------------------------------
+
+
+async function sendWtpHint(
+    channel,
+    redeemedBy = null
+) {
+
+    const cleanChannel =
+        normalizeChannel(channel);
+
+    const game =
+        getGame(cleanChannel);
+
+
+    if (
+        !game.gameActive ||
+        !game.currentPokemon
+    ) {
+
+        await client.say(
+            cleanChannel,
+            redeemedBy
+                ? `@${redeemedBy}, there is no active Pokémon round to give a hint for.`
+                : "There is no active Pokémon round to give a hint for."
+        );
+
+        return;
+    }
+
+
+    const pokemonName =
+        game.currentPokemon.displayName;
+
+    const totalLetters =
+        pokemonName
+            .replace(
+                /[^a-zA-Z0-9]/g,
+                ""
+            )
+            .length;
+
+
+    if (
+        game.hintLettersRevealed >=
+        totalLetters
+    ) {
+
+        await client.say(
+            cleanChannel,
+            `The full name has already been revealed: ${pokemonName}`
+        );
+
+        return;
+    }
+
+
+    game.hintLettersRevealed++;
+
+
+    const hint =
+        createPokemonHint(
+            pokemonName,
+            game.hintLettersRevealed
+        );
+
+
+    if (redeemedBy) {
+
+        await client.say(
+            cleanChannel,
+            `🔎 @${redeemedBy} redeemed a hint! Hint: ${hint}`
+        );
+
+    } else {
+
+        await client.say(
+            cleanChannel,
+            `🔎 Hint: ${hint}`
+        );
+    }
+}
 
 startBot();
