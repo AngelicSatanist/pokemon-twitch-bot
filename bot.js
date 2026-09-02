@@ -1123,9 +1123,20 @@ async function startBot() {
 
         if (game.gameActive && game.currentPokemon) {
 
+            const normalizedGuess =
+                normalizePokemonName(msg);
+
+            const acceptedNames = [
+                game.currentPokemon.name,
+                game.currentPokemon.displayName
+            ]
+                .filter(Boolean)
+                .map(normalizePokemonName);
+
             if (
-                normalizePokemonName(msg) ===
-                normalizePokemonName(game.currentPokemon.name)
+                acceptedNames.includes(
+                    normalizedGuess
+                )
             ) {
 
                 // Lock the round immediately so nobody else can win it
@@ -1242,23 +1253,22 @@ function canUseCommand(requiredPermission, channel, tags) {
 }
 
 function normalizePokemonName(name) {
-    return name
+    return String(name || "")
         .toLowerCase()
 
-        // Special symbols
-        .replace(/♀/g, " female")
-        .replace(/♂/g, " male")
+        // Turn accented letters into normal letters
+        // e.g. Flabébé -> flabebe
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
 
-        // Remove punctuation
-        .replace(/[.'’`´\-:,!?]/g, "")
+        // Make Nidoran gender names easier
+        .replace(/♀/g, "f")
+        .replace(/♂/g, "m")
+        .replace(/\bfemale\b/g, "f")
+        .replace(/\bmale\b/g, "m")
 
-        // Remove brackets
-        .replace(/[()]/g, "")
-
-        // Remove extra spaces
-        .replace(/\s+/g, " ")
-
-        .trim();
+        // Remove ALL spaces and punctuation
+        .replace(/[^a-z0-9]/g, "");
 }
 
 function createPokemonHint(name, lettersToReveal) {
@@ -1750,12 +1760,153 @@ async function handleRewardRedemption(
             );
 
 
+        case REWARD_IDS.bonk:
+            return handleSimpleRedeem(
+                event,
+                "bonk",
+                `🔨 @${event.user_name} bonked Angel!`,
+                3500
+            );
+
+
+        case REWARD_IDS.skillIssue:
+            return handleSimpleRedeem(
+                event,
+                "skillIssue",
+                `💀 @${event.user_name} called SKILL ISSUE!`,
+                4000
+            );
+
+
+        case REWARD_IDS.wStreamer:
+            return handleSimpleRedeem(
+                event,
+                "wStreamer",
+                `⭐ @${event.user_name} says W STREAMER!`,
+                4000
+            );
+
+
+        case REWARD_IDS.sus:
+            return handleSimpleRedeem(
+                event,
+                "sus",
+                `👀 @${event.user_name} is feeling a little SUS...`,
+                4000
+            );
+
+
+        case REWARD_IDS.glitter:
+            return handleSimpleRedeem(
+                event,
+                "glitter",
+                `✨ @${event.user_name} threw Pocket Glitter all over the stream!`,
+                6000
+            );
+
+
+        case REWARD_IDS.jumpscare1:
+            return handleSimpleRedeem(
+                event,
+                "jumpscare1",
+                null,
+                2500
+            );
+
+
+        case REWARD_IDS.jumpscare2:
+            return handleSimpleRedeem(
+                event,
+                "jumpscare2",
+                null,
+                2500
+            );
+
+
+        case REWARD_IDS.jumpscare3:
+            return handleSimpleRedeem(
+                event,
+                "jumpscare3",
+                null,
+                2500
+            );
+
+
         default:
             console.log(
                 `No handler yet for reward: ${event.reward.title}`
             );
 
             return;
+    }
+}
+
+// =====================================================
+// SIMPLE REDEEM EFFECTS
+// =====================================================
+
+function sendRedeemEffect(
+    effect,
+    event,
+    extra = {}
+) {
+
+    console.log(
+        `✨ Sending redeem effect "${effect}" for ${event.user_name}`
+    );
+
+
+    io.to(
+        CONFIG.personalChannel
+    ).emit(
+        "redeemEffect",
+        {
+            effect:
+                effect,
+
+            username:
+                event.user_name,
+
+            ...extra
+        }
+    );
+}
+
+
+async function handleSimpleRedeem(
+    event,
+    effect,
+    chatMessage = null,
+    duration = 5000
+) {
+
+    try {
+
+        sendRedeemEffect(
+            effect,
+            event,
+            {
+                duration:
+                    duration
+            }
+        );
+
+
+        if (chatMessage) {
+
+            await client.say(
+                CONFIG.personalChannel,
+                chatMessage
+            );
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            `${effect} redeem error:`,
+            error
+        );
     }
 }
 

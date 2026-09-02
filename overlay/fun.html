@@ -440,6 +440,9 @@
                         data =>
                             `${data.result} INCHES`,
 
+                    duration:
+                        4000,
+
                     subtitle:
                         "The measurements are in 😳"
                 },
@@ -458,6 +461,9 @@
                     result:
                         data =>
                             `${data.result} INCHES`,
+                    
+                    duration:
+                        4000,
 
                     subtitle:
                         "An extremely scientific measurement 💀"
@@ -477,6 +483,8 @@
                     result:
                         data =>
                             `${data.result} CUP`,
+                    duration:
+                        4000,
 
                     subtitle:
                         "The calculator has spoken 🎀"
@@ -485,112 +493,180 @@
             };
 
 
-            let hideTimer = null;
+            // =========================================
+            // FUN COMMAND QUEUE
+            // =========================================
+
+            const alertQueue = [];
+
+            let processingQueue = false;
+
+
+            // How long we give the alert to fade out
+            const FADE_OUT_TIME = 400;
+
+            // Tiny gap between alerts
+            const ALERT_GAP = 150;
+
+
+            function wait(ms) {
+                return new Promise(
+                    resolve =>
+                        setTimeout(resolve, ms)
+                );
+            }
 
 
             socket.on(
                 "funCommand",
                 data => {
 
-                    const style =
-                        COMMAND_STYLES[data.command];
-
-
-                    /*
-                    * Ignore commands the overlay
-                    * doesn't know about.
-                    */
-
-                    if (!style) {
+                    // Ignore unknown commands
+                    if (!COMMAND_STYLES[data.command]) {
                         return;
                     }
 
+                    // Add the command to the END
+                    // of the queue instead of
+                    // replacing the current alert
+                    alertQueue.push(data);
 
-                    if (hideTimer) {
-                        clearTimeout(hideTimer);
-                    }
-
-
-                    /*
-                    * Remove previous command styles
-                    */
-
-                    alertBox.classList.remove(
-                        "show",
-                        "inches-theme",
-                        "girth-theme",
-                        "cup-theme"
-                    );
-
-
-                    commandImage.classList.remove(
-                        "bounce",
-                        "wiggle",
-                        "spin"
-                    );
-
-
-                    /*
-                    * Update content
-                    */
-
-                    usernameElement.textContent =
-                        `@${data.username}`;
-
-                    resultElement.textContent =
-                        style.result(data);
-
-                    subtitleElement.textContent =
-                        style.subtitle;
-
-                    commandImage.src =
-                        `${style.image}?t=${Date.now()}`;
-
-                    /*
-                    * Apply this command's theme
-                    */
-
-                    alertBox.classList.add(
-                        style.theme
-                    );
-
-
-                    /*
-                    * Force the browser to restart
-                    * animations even if the same
-                    * command is used twice.
-                    */
-
-                    void alertBox.offsetWidth;
-                    void commandImage.offsetWidth;
-
-
-                    alertBox.classList.add(
-                        "show"
-                    );
-
-                    commandImage.classList.add(
-                        style.animation
-                    );
-
-
-                    /*
-                    * Hide after five seconds
-                    */
-
-                    hideTimer = setTimeout(
-                        () => {
-
-                            alertBox.classList.remove(
-                                "show"
-                            );
-
-                        },
-                        5000
-                    );
-
+                    processAlertQueue();
                 }
             );
+
+
+            async function processAlertQueue() {
+
+                // If we're already showing alerts,
+                // don't start another processor
+                if (processingQueue) {
+                    return;
+                }
+
+                processingQueue = true;
+
+
+                while (alertQueue.length > 0) {
+
+                    // Grab the oldest alert
+                    const data =
+                        alertQueue.shift();
+
+                    await showFunCommand(data);
+                }
+
+
+                processingQueue = false;
+            }
+
+
+            async function showFunCommand(data) {
+
+                const style =
+                    COMMAND_STYLES[data.command];
+
+                if (!style) {
+                    return;
+                }
+
+
+                // -------------------------------------
+                // RESET OLD STYLES
+                // -------------------------------------
+
+                alertBox.classList.remove(
+                    "show",
+                    "inches-theme",
+                    "girth-theme",
+                    "cup-theme"
+                );
+
+
+                commandImage.classList.remove(
+                    "bounce",
+                    "wiggle",
+                    "spin"
+                );
+
+
+                // -------------------------------------
+                // UPDATE CONTENT
+                // -------------------------------------
+
+                usernameElement.textContent =
+                    `@${data.username}`;
+
+                resultElement.textContent =
+                    style.result(data);
+
+                subtitleElement.textContent =
+                    style.subtitle;
+
+
+                // Cache-busting makes GIFs
+                // restart from the beginning
+                commandImage.src =
+                    `${style.image}?t=${Date.now()}`;
+
+
+                // -------------------------------------
+                // APPLY THEME
+                // -------------------------------------
+
+                alertBox.classList.add(
+                    style.theme
+                );
+
+
+                // Force browser reflow so animations
+                // restart correctly
+                void alertBox.offsetWidth;
+                void commandImage.offsetWidth;
+
+
+                // -------------------------------------
+                // SHOW ALERT
+                // -------------------------------------
+
+                alertBox.classList.add(
+                    "show"
+                );
+
+                commandImage.classList.add(
+                    style.animation
+                );
+
+
+                // Keep THIS person's roll visible
+                // for its full duration
+                await wait(
+                    style.duration ?? 5000
+                );
+
+
+                // -------------------------------------
+                // HIDE ALERT
+                // -------------------------------------
+
+                alertBox.classList.remove(
+                    "show"
+                );
+
+
+                // Let your 0.35 second CSS
+                // transition finish
+                await wait(
+                    FADE_OUT_TIME
+                );
+
+
+                // Small breathing room before
+                // the next queued roll
+                await wait(
+                    ALERT_GAP
+                );
+            }
 
 </script>
 
