@@ -61,12 +61,6 @@ const REWARD_IDS = {
 
     wtpGen:
         process.env.REWARD_WTP_GEN_ID,
-
-    wtpSkip:
-        process.env.REWARD_WTP_SKIP_ID,
-
-    wtpStart:
-        process.env.REWARD_WTP_START_ID
 };
 
 const { createClient } = require("@supabase/supabase-js");
@@ -1509,16 +1503,6 @@ async function handleRewardRedemption(
                 4000
             );
 
-
-        case REWARD_IDS.sus:
-            return handleSimpleRedeem(
-                event,
-                "sus",
-                `👀 @${event.user_name} is feeling a little SUS...`,
-                4000
-            );
-
-
         case REWARD_IDS.glitter:
             return handleSimpleRedeem(
                 event,
@@ -1554,20 +1538,19 @@ async function handleRewardRedemption(
                 2500
             );
 
-            case REWARD_IDS.wtpHint:
+         case REWARD_IDS.wtpHint:
+            return sendWtpHint(
+                CONFIG.personalChannel,
+                event.user_name
+            );
 
-                return sendWtpHint(
-                    CONFIG.personalChannel,
-                    event.user_name
-                );
 
+        case REWARD_IDS.wtpGen:
 
-            case REWARD_IDS.wtpGen:
-
-                return sendWtpGeneration(
-                    CONFIG.personalChannel,
-                    event.user_name
-                );
+            return sendWtpGeneration(
+                CONFIG.personalChannel,
+                event.user_name
+            );
 
         default:
             console.log(
