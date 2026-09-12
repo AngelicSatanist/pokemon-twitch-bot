@@ -25,9 +25,6 @@ const CONFIG = {
         .trim()
         .toLowerCase(),
 
-    discordUrl:
-        process.env.DISCORD_URL || "https://discord.gg/HtW7nnDZub",
-
         timezone:
             "Australia/Adelaide",
 
@@ -58,18 +55,6 @@ const REWARD_IDS = {
 
     jumpscare3:
         process.env.REWARD_JUMPSCARE_3_ID,
-
-    orb:
-        process.env.REWARD_ORB_ID,
-
-    love:
-        process.env.REWARD_LOVE_ID,
-
-    forbidden:
-        process.env.REWARD_FORBIDDEN_ID,
-
-    controller:
-        process.env.REWARD_CONTROLLER_ID,
 
     skillIssue:
         process.env.REWARD_SKILL_ISSUE_ID,
@@ -754,89 +739,6 @@ const SAVED_STAT_COMMANDS = {
 
 
 // -----------------------------------------------------
-// RANDOM TEXT LISTS
-// -----------------------------------------------------
-
-const EIGHT_BALL_RESPONSES = [
-    "Absolutely.",
-    "Absolutely not 💀",
-    "The spirits say yes.",
-    "The spirits say GIRL NO.",
-    "Ask me again when Mercury isn't doing whatever the fuck it's doing.",
-    "Signs point to yes.",
-    "Signs point to disaster.",
-    "I wouldn't risk it.",
-    "Fuck around and find out.",
-    "Probably?",
-    "Unclear. Try screaming.",
-    "Without a doubt.",
-    "Not in this economy.",
-    "The answer is hidden from you 👁️",
-    "Sure, why the hell not?"
-];
-
-
-const FORTUNES = [
-    "You will find money in an unexpected place.",
-    "A questionable decision will somehow work out.",
-    "You will encounter a suspiciously friendly animal.",
-    "Your next snack will be immaculate.",
-    "Someone is about to enable your bad decisions.",
-    "You will survive today entirely out of spite.",
-    "A minor inconvenience will become unnecessarily dramatic.",
-    "The universe recommends a little treat.",
-    "Something you lost will appear immediately after you stop looking for it.",
-    "Your future contains chaos, snacks, and questionable choices."
-];
-
-
-const DEATH_MESSAGES = [
-    "tried to pet an animal that very clearly said no.",
-    "forgot that gravity exists.",
-    "lost a fight with a revolving door.",
-    "was taken out by emotional damage.",
-    "clicked a suspicious link marked FREE ROBUX.",
-    "died doing what they loved: making terrible decisions.",
-    "challenged a goose and immediately regretted it.",
-    "was defeated by one singular LEGO brick.",
-    "forgot to save before the boss fight.",
-    "said 'what could possibly go wrong?' and found out.",
-    "was crushed under the weight of their own audacity.",
-    "perished after staying up for 'just one more game'."
-];
-
-
-const CURSES = [
-    "their socks will always feel slightly damp.",
-    "their charger will only work at one very specific angle.",
-    "every fitted sheet they touch will fight back.",
-    "they will forget why they walked into the next room.",
-    "their next sneeze will disappear right before it happens.",
-    "their pillow will always be warm on both sides.",
-    "they will step on one mysterious crumb while barefoot.",
-    "their food will become cold the second they sit down.",
-    "they will always pick the slowest checkout line.",
-    "their headphones will snag on absolutely everything."
-];
-
-
-const SINS = [
-    "Pride 👑",
-    "Greed 💰",
-    "Lust 💋",
-    "Envy 👀",
-    "Gluttony 🍰",
-    "Wrath 🔥",
-    "Sloth 😴"
-];
-
-
-// -----------------------------------------------------
-// TARGET COMMANDS
-// -----------------------------------------------------
-
-
-// -----------------------------------------------------
 // SAVED STAT HANDLER
 // -----------------------------------------------------
 
@@ -987,12 +889,6 @@ async function startBot() {
         ) {
             return true;
         }
-
-
-        // =====================================================
-        // TARGET ACTION COMMANDS
-        // =====================================================
-
 
         switch (command) {
 
@@ -1229,15 +1125,6 @@ async function startBot() {
 
                 return true;
 
-
-            case "discord":
-                client.say(
-                    channel,
-                    `💗 Join the Discord: ${CONFIG.discordUrl}`
-                );
-                return true;
-
-
             //case "socials":
             //    client.say(
             //        channel,
@@ -1246,23 +1133,6 @@ async function startBot() {
             //    return true;
 
 
-            case "hug": {
-                const target = args.join(" ");
-
-                if (!target) {
-                    client.say(
-                        channel,
-                        `@${username} is sending hugs to everyone! 🩷`
-                    );
-                } else {
-                    client.say(
-                        channel,
-                        `@${username} gives ${target} a big hug! 🫂💕`
-                    );
-                }
-
-                return true;
-            }
             default:
                 return false;
         }
