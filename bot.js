@@ -805,7 +805,7 @@ async function startBot() {
 
             client.say(
                 replyChannel,
-                `⏭️Pokémon skipped!⏭️ • It was ${game.currentPokemon.displayName}. • 📖 Pokédex entry: ${game.currentPokemon.pokedexEntry} • ⌛ Next Pokémon in 5 seconds...`
+                `⏭️Pokémon skipped!⏭️ •⌛ Next Pokémon in 5 seconds...`
             );
 
             io.to(replyChannel).emit("revealPokemon", {
@@ -880,7 +880,7 @@ async function startBot() {
 
                 client.say(
                     replyChannel,
-                    `🎉 ${displayName} guessed correctly! 🎉 • It was ${correctPokemon.displayName}! • 📖 Pokédex entry: ${correctPokemon.pokedexEntry} • ⌛ Next Pokémon in 5 seconds...`
+                    `🎉 ${displayName} guessed correctly! 🎉 • It was ${correctPokemon.displayName}! • ⌛ Next Pokémon in 5 seconds...`
                 );
 
                 io.to(replyChannel).emit("revealPokemon", {
