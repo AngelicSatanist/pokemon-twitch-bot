@@ -1994,8 +1994,8 @@ async function getCheckinStreak(
 const POKEMON_COMMAND_PERMISSIONS = {
     "!wtplb": "viewer",
 
-    "!wtpgen": "moderator",
-    "!wtphint": "moderator",
+    "!wtpgen": "viewer",
+    "!wtphint": "viewer",
 
     "!wtpstart": "moderator",
     "!wtpstop": "moderator",
