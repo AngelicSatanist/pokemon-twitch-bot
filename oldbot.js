@@ -1,0 +1,2153 @@
+require("dotenv").config();
+
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const tmi = require("tmi.js");
+const path = require("path");
+const pokemonList = require("./data/pokemon.json");
+const crypto = require("crypto");
+const WebSocket = require("ws");
+
+
+const games = {};
+
+// =====================================================
+// BOT CONFIGURATION
+// =====================================================
+
+const CONFIG = {
+    botAdmin: (process.env.BOT_ADMIN_USERNAME || "angelicsatanist")
+        .trim()
+        .toLowerCase(),
+
+    personalChannel: (process.env.PERSONAL_CHANNEL || "angelicsatanist")
+        .trim()
+        .toLowerCase(),
+
+        timezone:
+            "Australia/Adelaide",
+
+    nextRoundDelay: 5000
+};
+
+const REWARD_IDS = {
+    checkin:
+        process.env.DAILY_CHECKIN_REWARD_ID,
+
+    bonk:
+        process.env.REWARD_BONK_ID,
+
+    glitter:
+        process.env.REWARD_GLITTER_ID,
+
+    jumpscare1:
+        process.env.REWARD_JUMPSCARE_1_ID,
+
+    jumpscare2:
+        process.env.REWARD_JUMPSCARE_2_ID,
+
+    jumpscare3:
+        process.env.REWARD_JUMPSCARE_3_ID,
+
+    skillIssue:
+        process.env.REWARD_SKILL_ISSUE_ID,
+
+    wStreamer:
+        process.env.REWARD_W_STREAMER_ID,
+
+    wtpHint:
+        process.env.REWARD_WTP_HINT_ID,
+
+    wtpGen:
+        process.env.REWARD_WTP_GEN_ID,
+};
+
+const { createClient } = require("@supabase/supabase-js");
+
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY
+);    
+const supabaseAdmin = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SECRET_KEY
+);
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "overlay", "index.html"));
+});
+
+app.use(express.static("overlay"));
+app.use("/artwork", express.static(path.join(__dirname, "images", "artwork")));
+
+app.get("/theme/:channel", async (req, res) => {
+    const channel = req.params.channel.toLowerCase();
+
+    const response = await fetch(
+        `${process.env.SUPABASE_URL}/rest/v1/channels?select=overlay_theme&channel_name=eq.${channel}`,
+        {
+            headers: {
+                apikey: process.env.SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${process.env.SUPABASE_ANON_KEY}`
+            }
+        }
+    );
+
+    const data = await response.json();
+
+    res.json({
+        theme: data[0]?.overlay_theme || "default"
+    });
+});
+
+app.use(express.json());
+
+const twitchOAuthStates = new Map();
+
+
+app.get("/auth/twitch", (req, res) => {
+
+    const state =
+        crypto.randomBytes(24).toString("hex");
+
+    twitchOAuthStates.set(
+        state,
+        Date.now()
+    );
+
+
+    const params =
+        new URLSearchParams({
+            client_id:
+                process.env.TWITCH_CLIENT_ID,
+
+            redirect_uri:
+                process.env.TWITCH_REDIRECT_URI,
+
+            response_type:
+                "code",
+
+            scope:
+                "channel:read:redemptions",
+
+            state:
+                state
+        });
+
+
+    res.redirect(
+        `https://id.twitch.tv/oauth2/authorize?${params.toString()}`
+    );
+});
+
+app.get(
+    "/auth/twitch/callback",
+    async (req, res) => {
+
+        try {
+
+            const {
+                code,
+                state,
+                error
+            } = req.query;
+
+
+            if (error) {
+                return res
+                    .status(400)
+                    .send(
+                        `Twitch authorization failed: ${error}`
+                    );
+            }
+
+
+            if (
+                !state ||
+                !twitchOAuthStates.has(state)
+            ) {
+                return res
+                    .status(400)
+                    .send(
+                        "Invalid Twitch OAuth state."
+                    );
+            }
+
+
+            twitchOAuthStates.delete(state);
+
+
+            const params =
+                new URLSearchParams({
+                    client_id:
+                        process.env.TWITCH_CLIENT_ID,
+
+                    client_secret:
+                        process.env.TWITCH_CLIENT_SECRET,
+
+                    code:
+                        code,
+
+                    grant_type:
+                        "authorization_code",
+
+                    redirect_uri:
+                        process.env.TWITCH_REDIRECT_URI
+                });
+
+
+            const tokenResponse =
+                await fetch(
+                    "https://id.twitch.tv/oauth2/token",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/x-www-form-urlencoded"
+                        },
+
+                        body: params
+                    }
+                );
+
+
+            if (!tokenResponse.ok) {
+
+                const text =
+                    await tokenResponse.text();
+
+                throw new Error(
+                    `Token exchange failed: ${text}`
+                );
+            }
+
+
+            const tokenData =
+                await tokenResponse.json();
+
+
+            const validateResponse =
+                await fetch(
+                    "https://id.twitch.tv/oauth2/validate",
+                    {
+                        headers: {
+                            Authorization:
+                                `OAuth ${tokenData.access_token}`
+                        }
+                    }
+                );
+
+
+            if (!validateResponse.ok) {
+                throw new Error(
+                    "Couldn't validate Twitch authorization."
+                );
+            }
+
+
+            const validateData =
+                await validateResponse.json();
+
+
+            const authorizedChannel =
+                validateData.login
+                    .trim()
+                    .toLowerCase();
+
+
+            // Only allow your broadcaster account
+            if (
+                authorizedChannel !==
+                CONFIG.personalChannel
+            ) {
+                return res
+                    .status(403)
+                    .send(
+                        "Please authorize using the broadcaster account."
+                    );
+            }
+
+
+            const expiresAt =
+                new Date(
+                    Date.now() +
+                    tokenData.expires_in * 1000
+                ).toISOString();
+
+
+            const {
+                error: saveError
+            } =
+                await supabaseAdmin
+                    .from("twitch_auth")
+                    .upsert({
+                        channel_name:
+                            authorizedChannel,
+
+                        broadcaster_user_id:
+                            validateData.user_id,
+
+                        access_token:
+                            tokenData.access_token,
+
+                        refresh_token:
+                            tokenData.refresh_token,
+
+                        expires_at:
+                            expiresAt,
+
+                        updated_at:
+                            new Date().toISOString()
+                    });
+
+
+            if (saveError) {
+                throw saveError;
+            }
+
+
+            res.send(
+                "✅ Twitch connected! You can close this tab."
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "Twitch OAuth callback error:",
+                error
+            );
+
+            res
+                .status(500)
+                .send(
+                    "Something went wrong connecting Twitch."
+                );
+        }
+    }
+);
+
+app.post("/add-channel", async (req, res) => {
+    const channelName = req.body.channelName?.toLowerCase().trim();
+
+    if (!channelName) {
+        return res.status(400).json({ error: "Channel name is required." });
+    }
+
+    const cleanChannel = channelName.replace("@", "");
+
+    const response = await fetch(
+        `${process.env.SUPABASE_URL}/rest/v1/channels`,
+        {
+            method: "POST",
+            headers: {
+                apikey: process.env.SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${process.env.SUPABASE_ANON_KEY}`,
+                "Content-Type": "application/json",
+                Prefer: "resolution=merge-duplicates"
+            },
+            body: JSON.stringify({
+                channel_name: cleanChannel,
+                enabled: true,
+                overlay_theme: "default",
+                points_enabled: false
+            })
+        }
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        return res.status(500).json({ error: errorText });
+    }
+
+    res.json({
+        success: true,
+        channelName: cleanChannel,
+        overlayUrl: `https://pokemon-twitch-bot.onrender.com/?channel=${cleanChannel}`
+    });
+});
+
+app.get("/game/:channel", (req, res) => {
+    const channel = normalizeChannel(req.params.channel);
+    const game = getGame(channel);
+
+    res.json({
+        active: game.gameActive
+    });
+});
+
+const PORT = process.env.PORT || 3000;
+
+server.listen(PORT, () => {
+    console.log(`Overlay running on port ${PORT}`);
+});
+
+async function loadChannelsFromSupabase() {
+    const { data, error } = await supabase
+        .from("channels")
+        .select("channel_name")
+        .eq("enabled", true);
+
+    if (error) {
+        console.error(
+            "Couldn't load channels from Supabase:",
+            error
+        );
+
+        return [];
+    }
+
+    return data
+        .map(row => normalizeChannel(row.channel_name))
+        .filter(Boolean);
+}
+
+let client;
+let joinedChannels = new Set();
+
+function getGame(channel) {
+    if (!games[channel]) {
+        games[channel] = {
+            currentPokemon: null,
+            gameActive: false,
+            hintLettersRevealed: 0,
+            nextRoundTimer: null
+        };
+    }
+
+    return games[channel];
+}
+
+function clearNextRoundTimer(channel) {
+    const game = getGame(channel);
+
+    if (game.nextRoundTimer) {
+        clearTimeout(game.nextRoundTimer);
+        game.nextRoundTimer = null;
+    }
+}
+
+
+function scheduleNextRound(channel) {
+    const game = getGame(channel);
+
+    clearNextRoundTimer(channel);
+
+    game.nextRoundTimer = setTimeout(() => {
+        game.nextRoundTimer = null;
+        startNewRound(channel);
+    }, CONFIG.nextRoundDelay);
+}
+
+
+function stopGame(channel) {
+    const game = getGame(channel);
+
+    clearNextRoundTimer(channel);
+
+    game.gameActive = false;
+    game.currentPokemon = null;
+    game.hintLettersRevealed = 0;
+
+    io.to(channel).emit("clearPokemon");
+}
+
+const POKEMON_NAME_OVERRIDES = {
+
+    29:  { name: "nidoran", displayName: "Nidoran" },
+    32:  { name: "nidoran", displayName: "Nidoran" },
+
+    386: { name: "deoxys", displayName: "Deoxys" },
+    413: { name: "wormadam", displayName: "Wormadam" },
+    487: { name: "giratina", displayName: "Giratina" },
+    492: { name: "shaymin", displayName: "Shaymin" },
+    550: { name: "basculin", displayName: "Basculin" },
+    555: { name: "darmanitan", displayName: "Darmanitan" },
+
+    592: { name: "frillish", displayName: "Frillish" },
+    593: { name: "jellicent", displayName: "Jellicent" },
+
+    641: { name: "tornadus", displayName: "Tornadus" },
+    642: { name: "thundurus", displayName: "Thundurus" },
+    645: { name: "landorus", displayName: "Landorus" },
+
+    647: { name: "keldeo", displayName: "Keldeo" },
+    648: { name: "meloetta", displayName: "Meloetta" },
+
+    668: { name: "pyroar", displayName: "Pyroar" },
+    678: { name: "meowstic", displayName: "Meowstic" },
+    681: { name: "aegislash", displayName: "Aegislash" },
+
+    710: { name: "pumpkaboo", displayName: "Pumpkaboo" },
+    711: { name: "gourgeist", displayName: "Gourgeist" },
+
+    718: { name: "zygarde", displayName: "Zygarde" },
+
+    741: { name: "oricorio", displayName: "Oricorio" },
+    745: { name: "lycanroc", displayName: "Lycanroc" },
+    746: { name: "wishiwashi", displayName: "Wishiwashi" },
+
+    774: { name: "minior", displayName: "Minior" },
+    778: { name: "mimikyu", displayName: "Mimikyu" },
+
+    849: { name: "toxtricity", displayName: "Toxtricity" },
+
+    875: { name: "eiscue", displayName: "Eiscue" },
+    876: { name: "indeedee", displayName: "Indeedee" },
+    877: { name: "morpeko", displayName: "Morpeko" },
+
+    892: { name: "urshifu", displayName: "Urshifu" },
+
+    902: { name: "basculegion", displayName: "Basculegion" },
+    905: { name: "enamorus", displayName: "Enamorus" },
+
+    916: { name: "oinkologne", displayName: "Oinkologne" },
+
+    925: { name: "maushold", displayName: "Maushold" },
+    931: { name: "squawkabilly", displayName: "Squawkabilly" },
+
+    964: { name: "palafin", displayName: "Palafin" },
+    978: { name: "tatsugiri", displayName: "Tatsugiri" },
+    982: { name: "dudunsparce", displayName: "Dudunsparce" }
+
+};
+
+function getRandomPokemon() {
+
+    const randomIndex =
+        Math.floor(
+            Math.random() * pokemonList.length
+        );
+
+    const pokemon =
+        pokemonList[randomIndex];
+
+    const override =
+        POKEMON_NAME_OVERRIDES[pokemon.id];
+
+
+    // Normal Pokémon - return unchanged
+    if (!override) {
+        return pokemon;
+    }
+
+
+    // Pokémon whose JSON name contains
+    // an unwanted form/gender descriptor
+    return {
+        ...pokemon,
+        ...override
+    };
+}
+
+function startNewRound(channel) {
+    const cleanChannel = normalizeChannel(channel);
+    const game = getGame(cleanChannel);
+
+    clearNextRoundTimer(cleanChannel);
+
+    game.currentPokemon = getRandomPokemon();
+    game.gameActive = true;
+    game.hintLettersRevealed = 0;
+
+    io.to(cleanChannel).emit(
+        "newPokemon",
+        game.currentPokemon
+    );
+
+    console.log(
+        `New round for ${cleanChannel}:`,
+        game.currentPokemon.displayName
+    );
+}
+
+io.on("connection", (socket) => {
+    const channel = socket.handshake.query.channel;
+
+    if (channel) {
+        const cleanChannel = normalizeChannel(channel);
+        socket.join(cleanChannel);
+        console.log(`Overlay connected for ${cleanChannel}`);
+
+        const game = getGame(cleanChannel);
+
+        if (game.gameActive && game.currentPokemon) {
+            socket.emit("newPokemon", game.currentPokemon);
+        }
+    }
+});
+
+async function awardPoint(channel, username) {
+    const cleanChannel = normalizeChannel(channel);
+    const cleanUsername = username.toLowerCase();
+
+    const { data: existingPlayer, error: findError } = await supabase
+        .from("leaderboard")
+        .select("id, points, correct_guesses")
+        .eq("channel_name", cleanChannel)
+        .eq("username", cleanUsername)
+        .maybeSingle();
+
+    if (findError) {
+        console.error("Leaderboard lookup error:", findError);
+        return false;
+    }
+
+    if (existingPlayer) {
+        const { error: updateError } = await supabase
+            .from("leaderboard")
+            .update({
+                points: existingPlayer.points + 1,
+                correct_guesses: existingPlayer.correct_guesses + 1
+            })
+            .eq("id", existingPlayer.id);
+
+        if (updateError) {
+            console.error("Leaderboard update error:", updateError);
+            return false;
+        }
+    } else {
+        const { error: insertError } = await supabase
+            .from("leaderboard")
+            .insert({
+                channel_name: cleanChannel,
+                username: cleanUsername,
+                points: 1,
+                correct_guesses: 1
+            });
+
+        if (insertError) {
+            console.error("Leaderboard insert error:", insertError);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+async function getTopFive(channel) {
+    const { data, error } = await supabase
+        .from("leaderboard")
+        .select("username, points")
+        .eq("channel_name", normalizeChannel(channel))
+        .order("points", { ascending: false })
+        .order("correct_guesses", { ascending: false })
+        .limit(5);
+
+    if (error) {
+        console.error("Leaderboard read error:", error);
+        return null;
+    }
+
+    return data;
+}
+
+async function startBot() {
+    const channels = await loadChannelsFromSupabase();
+
+    if (channels.length === 0) {
+        console.error("No enabled channels found in Supabase.");
+        process.exit(1);
+    }
+
+    client = new tmi.Client({
+        identity: {
+            username: process.env.TWITCH_USERNAME,
+            password: process.env.TWITCH_OAUTH
+        },
+        channels: channels
+    });
+
+    client.on("connected", () => {
+        channels.forEach(
+            channel =>
+                joinedChannels.add(channel)
+        );
+
+        console.log(
+            "Bot connected to:",
+            [...joinedChannels]
+        );
+    });
+
+
+    await client.connect();
+
+    startEventSub();
+
+    client.on("message", async (channel, tags, message, self) => {
+        if (self) return;
+
+        const msg = message.toLowerCase().trim();
+        const username = getUsername(tags);
+        const displayName = getDisplayName(tags);
+        const replyChannel = normalizeChannel(channel);
+        const game = getGame(replyChannel);
+
+        const requiredPermission =
+            POKEMON_COMMAND_PERMISSIONS[msg];
+
+        if (
+            requiredPermission &&
+            !canUseCommand(requiredPermission, channel, tags)
+        ) {
+            return;
+        }
+
+        console.log(`Message received in: ${replyChannel}`);
+
+        if (msg === "!reloadchannels") {
+
+            if (replyChannel !== CONFIG.personalChannel) {
+                return;
+            }
+
+            if (!canUseCommand("botAdmin", channel, tags)) {
+                return;
+            }
+
+            await reloadChannels();
+
+            client.say(
+                replyChannel,
+                `✅ Channel list reloaded! Currently connected to ${joinedChannels.size} channels.`
+            );
+
+            return;
+        }
+
+        if (msg === "!wtplb") {
+        const topPlayers = await getTopFive(replyChannel);
+
+        if (topPlayers === null) {
+            client.say(
+                replyChannel,
+                "I couldn't load the leaderboard right now."
+            );
+            return;
+        }
+
+        if (topPlayers.length === 0) {
+            client.say(
+                replyChannel,
+                "🏆 The leaderboard is empty. Be the first person to guess a Pokémon!"
+            );
+            return;
+        }
+
+        const leaderboardText = topPlayers
+            .map((player, index) => {
+                return `${index + 1}. ${player.username} — ${player.points} point${player.points === 1 ? "" : "s"}`;
+            })
+            .join(" | ");
+
+        client.say(
+            replyChannel,
+            `🏆 Who's That Pokémon Top 5 🏆 | ${leaderboardText}`
+        );
+
+
+        // Send leaderboard to the fun overlay
+        io.to(replyChannel).emit(
+            "showLeaderboard",
+            {
+                players: topPlayers,
+                duration: 10000
+            }
+        );
+
+
+        return;
+    }
+
+        if (msg === "!wtpstart") {
+            if (game.gameActive) {
+                client.say(replyChannel, "A Pokémon round is already active! Guess the Pokémon!");
+                return;
+            }
+
+            startNewRound(replyChannel);
+            client.say(replyChannel, "Who's That Pokémon? Guess now in chat!");
+            return;
+        }
+
+        if (msg === "!wtpgen") {
+
+            await sendWtpGeneration(
+                replyChannel
+            );
+
+            return;
+        }
+
+        if (msg === "!wtpstop") {
+
+            stopGame(replyChannel);
+
+            client.say(
+                replyChannel,
+                "Who's That Pokémon has been stopped."
+            );
+
+            return;
+        }
+
+        if (msg === "!wtpskip") {
+            if (!game.gameActive || !game.currentPokemon) {
+                client.say(replyChannel, "There is no active Pokémon round.");
+                return;
+            }
+
+            client.say(
+                replyChannel,
+                `⏭️Pokémon skipped!⏭️ •⌛ Next Pokémon in 5 seconds...`
+            );
+
+            io.to(replyChannel).emit("revealPokemon", {
+                ...game.currentPokemon,
+                skipped: true
+            });
+
+            game.gameActive = false;
+
+            scheduleNextRound(replyChannel);
+
+            return;
+        }
+
+        if (msg === "!wtprefresh") {
+            if (game.gameActive && game.currentPokemon) {
+                io.to(replyChannel).emit("newPokemon", game.currentPokemon);
+                client.say(replyChannel, "Overlay refreshed.");
+            } else {
+                client.say(
+                    replyChannel, 
+                    "There is no active Pokémon round to refresh."
+                );
+            }
+
+            return;
+        }
+
+        if (msg === "!wtphint") {
+
+            await sendWtpHint(
+                replyChannel
+            );
+
+            return;
+        }
+
+        if (game.gameActive && game.currentPokemon) {
+
+            const normalizedGuess =
+                normalizePokemonName(msg);
+
+            const acceptedNames = [
+                game.currentPokemon.name,
+                game.currentPokemon.displayName
+            ]
+                .filter(Boolean)
+                .map(normalizePokemonName);
+
+            if (
+                acceptedNames.includes(
+                    normalizedGuess
+                )
+            ) {
+
+                // Lock the round immediately so nobody else can win it
+                game.gameActive = false;
+
+                // Save the Pokémon before doing asynchronous work
+                const correctPokemon = game.currentPokemon;
+
+                const pointAwarded = await awardPoint(
+                    replyChannel,
+                    username
+                );
+
+                if (!pointAwarded) {
+                    console.error(
+                        `Failed to award point to ${username} in ${replyChannel}`
+                    );
+                }
+
+                client.say(
+                    replyChannel,
+                    `🎉 ${displayName} guessed correctly! 🎉 • It was ${correctPokemon.displayName}! • `
+                );
+
+                io.to(replyChannel).emit("revealPokemon", {
+                    ...correctPokemon,
+                    winner: displayName
+                });
+
+                scheduleNextRound(replyChannel);
+
+                return;
+            }
+        }
+    });
+}
+async function reloadChannels() {
+    const latestChannels = await loadChannelsFromSupabase();
+
+    // Join new channels
+    for (const channel of latestChannels) {
+        if (!joinedChannels.has(channel)) {
+            try {
+                await client.join(channel);
+                joinedChannels.add(channel);
+                console.log(`Joined ${channel}`);
+            } catch (err) {
+                console.error(`Couldn't join ${channel}:`, err);
+            }
+        }
+    }
+
+    // Leave disabled channels
+    for (const channel of [...joinedChannels]) {
+        if (!latestChannels.includes(channel)) {
+            try {
+                // Stop any active game and cancel pending timers
+                stopGame(channel);
+
+                await client.part(channel);
+
+                joinedChannels.delete(channel);
+
+                // Remove the channel's saved game state
+                delete games[channel];
+
+                console.log(`Left ${channel}`);
+            } catch (err) {
+                console.error(`Couldn't leave ${channel}:`, err);
+            }
+        }
+    }
+
+    return {
+        joined: [...joinedChannels]
+    };
+}
+
+// =====================================================
+// COMMAND PERMISSIONS
+// =====================================================
+
+function canUseCommand(requiredPermission, channel, tags) {
+    const cleanChannel = normalizeChannel(channel);
+    const username = getUsername(tags);
+
+    const isOwner = username === cleanChannel;
+
+    const isModerator =
+        isOwner ||
+        tags?.mod === true ||
+        tags?.badges?.moderator === "1";
+
+    const isBotAdmin =
+        username === CONFIG.botAdmin;
+
+    switch (requiredPermission) {
+
+        case "viewer":
+            return true;
+
+        case "moderator":
+            return isModerator;
+
+        case "owner":
+            return isOwner;
+
+        case "botAdmin":
+            return isBotAdmin;
+
+        default:
+            return false;
+    }
+}
+
+function normalizePokemonName(name) {
+
+    return String(name || "")
+        .toLowerCase()
+
+        // é -> e, etc.
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+
+        // Ignore spaces, punctuation,
+        // apostrophes, hyphens, periods, etc.
+        .replace(/[^a-z0-9]/g, "");
+}
+
+function createPokemonHint(name, lettersToReveal) {
+    let lettersSeen = 0;
+
+    return name
+        .split("")
+        .map(character => {
+            // Show spaces and punctuation automatically
+            if (!/[a-zA-Z0-9]/.test(character)) {
+                return character;
+            }
+
+            lettersSeen++;
+
+            if (lettersSeen <= lettersToReveal) {
+                return character.toUpperCase();
+            }
+
+            return "_";
+        })
+        .join(" ");
+}
+
+// =====================================================
+// TWITCH BROADCASTER AUTH
+// =====================================================
+
+async function getBroadcasterAuth() {
+
+    const {
+        data,
+        error
+    } =
+        await supabaseAdmin
+            .from("twitch_auth")
+            .select("*")
+            .eq(
+                "channel_name",
+                CONFIG.personalChannel
+            )
+            .maybeSingle();
+
+
+    if (error) {
+        throw error;
+    }
+
+
+    if (!data) {
+        throw new Error(
+            "Broadcaster Twitch authorization has not been completed."
+        );
+    }
+
+
+    // Check whether the saved Twitch access token
+    // is still valid
+    const validateResponse =
+        await fetch(
+            "https://id.twitch.tv/oauth2/validate",
+            {
+                headers: {
+                    Authorization:
+                        `OAuth ${data.access_token}`
+                }
+            }
+        );
+
+
+    // The current token is still valid
+    if (validateResponse.ok) {
+        return data;
+    }
+
+
+    console.log(
+        "Refreshing broadcaster Twitch token..."
+    );
+
+
+    // The access token expired, so use the
+    // saved refresh token to get a new one
+    const params =
+        new URLSearchParams({
+            client_id:
+                process.env.TWITCH_CLIENT_ID,
+
+            client_secret:
+                process.env.TWITCH_CLIENT_SECRET,
+
+            grant_type:
+                "refresh_token",
+
+            refresh_token:
+                data.refresh_token
+        });
+
+
+    const refreshResponse =
+        await fetch(
+            "https://id.twitch.tv/oauth2/token",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/x-www-form-urlencoded"
+                },
+
+                body: params
+            }
+        );
+
+
+    if (!refreshResponse.ok) {
+
+        const text =
+            await refreshResponse.text();
+
+        throw new Error(
+            `Couldn't refresh Twitch token: ${text}`
+        );
+    }
+
+
+    const refreshed =
+        await refreshResponse.json();
+
+
+    const newExpiresAt =
+        new Date(
+            Date.now() +
+            refreshed.expires_in * 1000
+        ).toISOString();
+
+
+    // Save the refreshed Twitch tokens back
+    // into Supabase
+    const {
+        error: updateError
+    } =
+        await supabaseAdmin
+            .from("twitch_auth")
+            .update({
+                access_token:
+                    refreshed.access_token,
+
+                refresh_token:
+                    refreshed.refresh_token,
+
+                expires_at:
+                    newExpiresAt,
+
+                updated_at:
+                    new Date().toISOString()
+            })
+            .eq(
+                "channel_name",
+                CONFIG.personalChannel
+            );
+
+
+    if (updateError) {
+        throw updateError;
+    }
+
+
+    return {
+        ...data,
+
+        access_token:
+            refreshed.access_token,
+
+        refresh_token:
+            refreshed.refresh_token,
+
+        expires_at:
+            newExpiresAt
+    };
+}
+
+// =====================================================
+// TWITCH EVENTSUB
+// =====================================================
+
+let eventSubSocket = null;
+
+
+async function startEventSub() {
+
+    try {
+
+        const auth =
+            await getBroadcasterAuth();
+
+        connectEventSub(
+            "wss://eventsub.wss.twitch.tv/ws",
+            auth,
+            false
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Couldn't start Twitch EventSub:",
+            error
+        );
+    }
+}
+
+function connectEventSub(
+    url,
+    auth,
+    isReconnect = false
+) {
+
+    console.log(
+        "Connecting to Twitch EventSub..."
+    );
+
+
+    const socket =
+        new WebSocket(url);
+
+    eventSubSocket = socket;
+
+    let twitchRequestedReconnect = false;
+
+
+    socket.on(
+        "message",
+        async rawMessage => {
+
+            try {
+
+                const message =
+                    JSON.parse(
+                        rawMessage.toString()
+                    );
+
+
+                const messageType =
+                    message.metadata
+                        ?.message_type;
+
+
+                // Twitch opened the connection
+                if (
+                    messageType ===
+                    "session_welcome"
+                ) {
+
+                    console.log(
+                        "✅ Twitch EventSub connected."
+                    );
+
+
+                    const sessionId =
+                        message.payload
+                            .session
+                            .id;
+
+
+                    // A brand-new connection needs
+                    // our redemption subscription.
+                    //
+                    // A Twitch-requested reconnect
+                    // keeps the existing subscription.
+                    if (!isReconnect) {
+
+                        await subscribeToRedemptions(
+                            sessionId,
+                            auth
+                        );
+                    }
+
+
+                    return;
+                }
+
+
+                // Twitch sent us an actual event
+                if (
+                    messageType ===
+                    "notification"
+                ) {
+
+                    const subscriptionType =
+                        message.metadata
+                            ?.subscription_type;
+
+
+                    if (
+                        subscriptionType ===
+                        "channel.channel_points_custom_reward_redemption.add"
+                    ) {
+
+                        await handleRewardRedemption(
+                            message.payload.event
+                        );
+                    }
+
+
+                    return;
+                }
+
+
+                // Twitch asks us to move the
+                // connection to another WebSocket
+                if (
+                    messageType ===
+                    "session_reconnect"
+                ) {
+
+                    twitchRequestedReconnect = true;
+
+                    const reconnectUrl =
+                        message.payload
+                            .session
+                            .reconnect_url;
+
+
+                    console.log(
+                        "Twitch requested EventSub reconnect."
+                    );
+
+
+                    connectEventSub(
+                        reconnectUrl,
+                        auth,
+                        true
+                    );
+
+
+                    return;
+                }
+
+
+                // Twitch revoked the subscription
+                if (
+                    messageType ===
+                    "revocation"
+                ) {
+
+                    console.error(
+                        "⚠️ Twitch revoked EventSub subscription:",
+                        message.payload
+                            ?.subscription
+                            ?.status
+                    );
+                }
+
+
+            } catch (error) {
+
+                console.error(
+                    "EventSub message error:",
+                    error
+                );
+            }
+        }
+    );
+
+
+    socket.on(
+        "error",
+        error => {
+
+            console.error(
+                "Twitch EventSub socket error:",
+                error
+            );
+        }
+    );
+
+
+    socket.on(
+        "close",
+        () => {
+
+            console.log(
+                "Twitch EventSub socket closed."
+            );
+
+
+            if (
+                !twitchRequestedReconnect &&
+                eventSubSocket === socket
+            ) {
+
+                console.log(
+                    "Unexpected EventSub disconnect. Reconnecting in 5 seconds..."
+                );
+
+
+                setTimeout(
+                    () => {
+                        startEventSub();
+                    },
+                    5000
+                );
+            }
+        }
+    );
+}
+
+async function subscribeToRedemptions(
+    sessionId,
+    auth
+) {
+
+    const response =
+        await fetch(
+            "https://api.twitch.tv/helix/eventsub/subscriptions",
+            {
+                method: "POST",
+
+                headers: {
+                    "Client-Id":
+                        process.env.TWITCH_CLIENT_ID,
+
+                    Authorization:
+                        `Bearer ${auth.access_token}`,
+
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body:
+                    JSON.stringify({
+                        type:
+                            "channel.channel_points_custom_reward_redemption.add",
+
+                        version:
+                            "1",
+
+                        condition: {
+                            broadcaster_user_id:
+                                auth.broadcaster_user_id
+                        },
+
+                        transport: {
+                            method:
+                                "websocket",
+
+                            session_id:
+                                sessionId
+                        }
+                    })
+            }
+        );
+
+
+    if (!response.ok) {
+
+        const text =
+            await response.text();
+
+        throw new Error(
+            `Couldn't subscribe to redemptions: ${text}`
+        );
+    }
+
+
+    console.log(
+        "✅ Subscribed to Channel Point redemptions."
+    );
+}
+
+// =====================================================
+// REWARD ROUTER
+// =====================================================
+
+async function handleRewardRedemption(
+    event
+) {
+
+    console.log(
+        `🎁 Reward redeemed: "${event.reward.title}" | by ${event.user_name}`
+    );
+
+
+    switch (event.reward.id) {
+
+        case REWARD_IDS.checkin:
+            return handleDailyCheckin(
+                event
+            );
+
+
+        case REWARD_IDS.bonk:
+            return handleSimpleRedeem(
+                event,
+                "bonk",
+                `🔨 @${event.user_name} bonked Angel!`,
+                3500
+            );
+
+
+        case REWARD_IDS.skillIssue:
+            return handleSimpleRedeem(
+                event,
+                "skillIssue",
+                `💀 @${event.user_name} called SKILL ISSUE!`,
+                4000
+            );
+
+
+        case REWARD_IDS.wStreamer:
+            return handleSimpleRedeem(
+                event,
+                "wStreamer",
+                `⭐ @${event.user_name} says W STREAMER!`,
+                4000
+            );
+
+        case REWARD_IDS.glitter:
+            return handleSimpleRedeem(
+                event,
+                "glitter",
+                `✨ @${event.user_name} threw Pocket Glitter all over the stream!`,
+                6000
+            );
+
+
+        case REWARD_IDS.jumpscare1:
+            return handleSimpleRedeem(
+                event,
+                "jumpscare1",
+                null,
+                2500
+            );
+
+
+        case REWARD_IDS.jumpscare2:
+            return handleSimpleRedeem(
+                event,
+                "jumpscare2",
+                null,
+                2500
+            );
+
+
+        case REWARD_IDS.jumpscare3:
+            return handleSimpleRedeem(
+                event,
+                "jumpscare3",
+                null,
+                2500
+            );
+
+         case REWARD_IDS.wtpHint:
+            return sendWtpHint(
+                CONFIG.personalChannel,
+                event.user_name
+            );
+
+
+        case REWARD_IDS.wtpGen:
+
+            return sendWtpGeneration(
+                CONFIG.personalChannel,
+                event.user_name
+            );
+
+        default:
+            console.log(
+                `No handler yet for reward: ${event.reward.title}`
+            );
+
+            return;
+    }
+}
+
+// =====================================================
+// SIMPLE REDEEM EFFECTS
+// =====================================================
+
+function sendRedeemEffect(
+    effect,
+    event,
+    extra = {}
+) {
+
+    console.log(
+        `✨ Sending redeem effect "${effect}" for ${event.user_name}`
+    );
+
+
+    io.to(
+        CONFIG.personalChannel
+    ).emit(
+        "redeemEffect",
+        {
+            effect:
+                effect,
+
+            username:
+                event.user_name,
+
+            ...extra
+        }
+    );
+}
+
+
+async function handleSimpleRedeem(
+    event,
+    effect,
+    chatMessage = null,
+    duration = 5000
+) {
+
+    try {
+
+        sendRedeemEffect(
+            effect,
+            event,
+            {
+                duration:
+                    duration
+            }
+        );
+
+
+        if (chatMessage) {
+
+            await client.say(
+                CONFIG.personalChannel,
+                chatMessage
+            );
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            `${effect} redeem error:`,
+            error
+        );
+    }
+}
+
+// =====================================================
+// DAILY CHECK-IN
+// =====================================================
+
+async function handleDailyCheckin(
+    event
+) {
+
+    try {
+
+        const checkinDate =
+            getDateInTimeZone(
+                event.redeemed_at,
+                CONFIG.timezone
+            );
+
+        // -----------------------------------------
+        // Has this viewer already checked in today?
+        // -----------------------------------------
+
+        const {
+            data: existingCheckin,
+            error: existingError
+        } =
+            await supabaseAdmin
+                .from("daily_checkins")
+                .select("id")
+                .eq(
+                    "channel_name",
+                    CONFIG.personalChannel
+                )
+                .eq(
+                    "user_id",
+                    event.user_id
+                )
+                .eq(
+                    "checkin_date",
+                    checkinDate
+                )
+                .maybeSingle();
+
+
+        if (existingError) {
+            throw existingError;
+        }
+
+
+        // Already checked in today
+        if (existingCheckin) {
+
+            const streak =
+                await getCheckinStreak(
+                    CONFIG.personalChannel,
+                    event.user_id
+                );
+
+
+            console.log(
+                `${event.user_name} already checked in on ${checkinDate}.`
+            );
+
+
+            client.say(
+                CONFIG.personalChannel,
+                `💗 @${event.user_name}, you've already checked in today! 🔥 Your current streak is ${streak} day${streak === 1 ? "" : "s"}!`
+            );
+
+
+            return;
+        }
+
+
+        // -----------------------------------------
+        // Save today's check-in
+        // -----------------------------------------
+
+        const {
+            error: insertError
+        } =
+            await supabaseAdmin
+                .from("daily_checkins")
+                .insert({
+                    channel_name:
+                        CONFIG.personalChannel,
+
+                    user_id:
+                        event.user_id,
+
+                    username:
+                        event.user_name,
+
+                    checkin_date:
+                        checkinDate,
+
+                    redemption_id:
+                        event.id,
+
+                    redeemed_at:
+                        event.redeemed_at
+                });
+
+
+        if (insertError) {
+            throw insertError;
+        }
+
+
+        // -----------------------------------------
+        // Count lifetime check-ins
+        // -----------------------------------------
+
+        const {
+            count,
+            error: countError
+        } =
+            await supabaseAdmin
+                .from("daily_checkins")
+                .select(
+                    "id",
+                    {
+                        count: "exact",
+                        head: true
+                    }
+                )
+                .eq(
+                    "channel_name",
+                    CONFIG.personalChannel
+                )
+                .eq(
+                    "user_id",
+                    event.user_id
+                );
+
+
+        if (countError) {
+            throw countError;
+        }
+
+
+        const totalCheckins =
+            count || 1;
+
+        const streak =
+            await getCheckinStreak(
+                CONFIG.personalChannel,
+                event.user_id
+            );
+
+
+        console.log(
+            `💗 ${event.user_name} completed Daily Check-In #${totalCheckins} | ${streak}-day streak`
+        );
+
+
+        // -----------------------------------------
+        // Twitch chat response
+        // -----------------------------------------
+
+        client.say(
+            CONFIG.personalChannel,
+            `💗 @${event.user_name} checked in! ✨ Check-in #${totalCheckins} • 🔥 ${streak}-day streak!`
+        );
+
+
+        // -----------------------------------------
+        // Send result to fun overlay
+        // -----------------------------------------
+
+        io.to(
+            CONFIG.personalChannel
+        ).emit(
+            "funCommand",
+            {
+                command:
+                    "checkin",
+
+                username:
+                    event.user_name,
+
+                result:
+                    totalCheckins,
+
+                streak:
+                    streak
+            }
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "Daily Check-In error:",
+            error
+        );
+    }
+}
+
+// =====================================================
+// TWITCH HELPERS
+// =====================================================
+
+function normalizeChannel(channel) {
+    return String(channel || "")
+        .replace(/^#/, "")
+        .replace(/^@/, "")
+        .trim()
+        .toLowerCase();
+}
+
+
+function getUsername(tags) {
+    return String(tags?.username || tags?.["display-name"] || "")
+        .replace(/^@/, "")
+        .trim()
+        .toLowerCase();
+}
+
+
+function getDisplayName(tags) {
+    return tags?.["display-name"] || tags?.username || "viewer";
+}
+
+function getDateInTimeZone(
+    dateValue,
+    timeZone
+) {
+
+    const date =
+        new Date(dateValue);
+
+    const parts =
+        new Intl.DateTimeFormat(
+            "en-AU",
+            {
+                timeZone: timeZone,
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit"
+            }
+        )
+            .formatToParts(date);
+
+
+    const year =
+        parts.find(
+            part => part.type === "year"
+        ).value;
+
+    const month =
+        parts.find(
+            part => part.type === "month"
+        ).value;
+
+    const day =
+        parts.find(
+            part => part.type === "day"
+        ).value;
+
+
+    return `${year}-${month}-${day}`;
+}
+
+// =====================================================
+// DAILY CHECK-IN HELPERS
+// =====================================================
+
+function previousDateString(
+    dateString
+) {
+
+    const date =
+        new Date(
+            `${dateString}T12:00:00Z`
+        );
+
+
+    date.setUTCDate(
+        date.getUTCDate() - 1
+    );
+
+
+    return date
+        .toISOString()
+        .slice(0, 10);
+}
+
+
+async function getCheckinStreak(
+    channel,
+    userId
+) {
+
+    const {
+        data,
+        error
+    } =
+        await supabaseAdmin
+            .from("daily_checkins")
+            .select("checkin_date")
+            .eq(
+                "channel_name",
+                normalizeChannel(channel)
+            )
+            .eq(
+                "user_id",
+                userId
+            )
+            .order(
+                "checkin_date",
+                {
+                    ascending: false
+                }
+            );
+
+
+    if (error) {
+        throw error;
+    }
+
+
+    if (
+        !data ||
+        data.length === 0
+    ) {
+        return 0;
+    }
+
+
+    let expectedDate =
+        data[0].checkin_date;
+
+    let streak = 0;
+
+
+    for (const row of data) {
+
+        if (
+            row.checkin_date !==
+            expectedDate
+        ) {
+            break;
+        }
+
+
+        streak++;
+
+
+        expectedDate =
+            previousDateString(
+                expectedDate
+            );
+    }
+
+
+    return streak;
+}
+
+// =====================================================
+// POKÉMON COMMAND PERMISSIONS
+// =====================================================
+
+const POKEMON_COMMAND_PERMISSIONS = {
+    "!wtplb": "viewer",
+
+    "!wtpgen": "viewer",
+    "!wtphint": "viewer",
+
+    "!wtpstart": "moderator",
+    "!wtpstop": "moderator",
+    "!wtpskip": "moderator",
+    "!wtprefresh": "moderator"
+};
+
+// =====================================================
+// WHO'S THAT POKÉMON SHARED ACTIONS
+// =====================================================
+
+async function sendWtpGeneration(
+    channel,
+    redeemedBy = null
+) {
+
+    const cleanChannel =
+        normalizeChannel(channel);
+
+    const game =
+        getGame(cleanChannel);
+
+
+    if (
+        !game.gameActive ||
+        !game.currentPokemon
+    ) {
+
+        await client.say(
+            cleanChannel,
+            redeemedBy
+                ? `@${redeemedBy}, there is no active Pokémon round right now.`
+                : "There is no active Pokémon round."
+        );
+
+        return;
+    }
+
+
+    const generation =
+        game.currentPokemon.generation;
+
+
+    if (!generation) {
+
+        await client.say(
+            cleanChannel,
+            "Generation information is unavailable for this Pokémon."
+        );
+
+        return;
+    }
+
+
+    if (redeemedBy) {
+
+        await client.say(
+            cleanChannel,
+            `🧬 @${redeemedBy} redeemed a generation reveal! The current Pokémon is from Gen ${generation}.`
+        );
+
+    } else {
+
+        await client.say(
+            cleanChannel,
+            `The current Pokémon is from Gen ${generation}.`
+        );
+    }
+}
+
+
+// -----------------------------------------------------
+
+
+async function sendWtpHint(
+    channel,
+    redeemedBy = null
+) {
+
+    const cleanChannel =
+        normalizeChannel(channel);
+
+    const game =
+        getGame(cleanChannel);
+
+
+    if (
+        !game.gameActive ||
+        !game.currentPokemon
+    ) {
+
+        await client.say(
+            cleanChannel,
+            redeemedBy
+                ? `@${redeemedBy}, there is no active Pokémon round to give a hint for.`
+                : "There is no active Pokémon round to give a hint for."
+        );
+
+        return;
+    }
+
+
+    const pokemonName =
+        game.currentPokemon.displayName;
+
+    const totalLetters =
+        pokemonName
+            .replace(
+                /[^a-zA-Z0-9]/g,
+                ""
+            )
+            .length;
+
+
+    if (
+        game.hintLettersRevealed >=
+        totalLetters
+    ) {
+
+        await client.say(
+            cleanChannel,
+            `The full name has already been revealed: ${pokemonName}`
+        );
+
+        return;
+    }
+
+
+    game.hintLettersRevealed++;
+
+
+    const hint =
+        createPokemonHint(
+            pokemonName,
+            game.hintLettersRevealed
+        );
+
+
+    if (redeemedBy) {
+
+        await client.say(
+            cleanChannel,
+            `🔎 @${redeemedBy} redeemed a hint! Hint: ${hint}`
+        );
+
+    } else {
+
+        await client.say(
+            cleanChannel,
+            `🔎 Hint: ${hint}`
+        );
+    }
+}
+
+startBot();

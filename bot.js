@@ -12,6 +12,14 @@ const WebSocket = require("ws");
 
 const games = {};
 
+// Derive the available generations from the Pokémon actually in your JSON file.
+// This means the rotation only offers generations your bot can display.
+const AVAILABLE_GENERATIONS = [...new Set(
+    pokemonList
+        .map(pokemon => Number(pokemon.generation))
+        .filter(generation => Number.isInteger(generation) && generation > 0)
+)].sort((a, b) => a - b);
+
 // =====================================================
 // BOT CONFIGURATION
 // =====================================================
@@ -416,11 +424,41 @@ function getGame(channel) {
             currentPokemon: null,
             gameActive: false,
             hintLettersRevealed: 0,
-            nextRoundTimer: null
+            nextRoundTimer: null,
+            enabledGenerations: [...AVAILABLE_GENERATIONS]
         };
     }
 
     return games[channel];
+}
+
+// Load saved settings for every joined channel. Default to all available
+// generations if a channel has no valid saved selection.
+async function loadGenerationSettings(channels) {
+    if (!channels.length) return;
+
+    const { data, error } = await supabaseAdmin
+        .from("channels")
+        .select("channel_name, enabled_generations")
+        .in("channel_name", channels);
+
+    if (error) {
+        console.error("Couldn't load Pokémon generation settings:", error);
+        return;
+    }
+
+    for (const row of data || []) {
+        const selected = Array.isArray(row.enabled_generations)
+            ? row.enabled_generations.map(Number).filter(
+                generation => AVAILABLE_GENERATIONS.includes(generation)
+            )
+            : [];
+
+        getGame(normalizeChannel(row.channel_name)).enabledGenerations =
+            selected.length > 0
+                ? [...new Set(selected)].sort((a, b) => a - b)
+                : [...AVAILABLE_GENERATIONS];
+    }
 }
 
 function clearNextRoundTimer(channel) {
@@ -517,15 +555,24 @@ const POKEMON_NAME_OVERRIDES = {
 
 };
 
-function getRandomPokemon() {
+function getRandomPokemon(channel) {
+
+    const enabledGenerations = getGame(channel).enabledGenerations;
+    const eligiblePokemon = pokemonList.filter(
+        pokemon => enabledGenerations.includes(Number(pokemon.generation))
+    );
+
+    if (eligiblePokemon.length === 0) {
+        return null;
+    }
 
     const randomIndex =
         Math.floor(
-            Math.random() * pokemonList.length
+            Math.random() * eligiblePokemon.length
         );
 
     const pokemon =
-        pokemonList[randomIndex];
+        eligiblePokemon[randomIndex];
 
     const override =
         POKEMON_NAME_OVERRIDES[pokemon.id];
@@ -551,7 +598,17 @@ function startNewRound(channel) {
 
     clearNextRoundTimer(cleanChannel);
 
-    game.currentPokemon = getRandomPokemon();
+    game.currentPokemon = getRandomPokemon(cleanChannel);
+
+    if (!game.currentPokemon) {
+        stopGame(cleanChannel);
+        console.error(`No eligible Pokémon found for ${cleanChannel}.`);
+        if (client) {
+            client.say(cleanChannel, "No Pokémon match the enabled generations. Check your rotation settings.");
+        }
+        return;
+    }
+
     game.gameActive = true;
     game.hintLettersRevealed = 0;
 
@@ -655,6 +712,8 @@ async function startBot() {
         process.exit(1);
     }
 
+    await loadGenerationSettings(channels);
+
     client = new tmi.Client({
         identity: {
             username: process.env.TWITCH_USERNAME,
@@ -684,13 +743,14 @@ async function startBot() {
         if (self) return;
 
         const msg = message.toLowerCase().trim();
+        const command = msg.split(/\s+/)[0];
         const username = getUsername(tags);
         const displayName = getDisplayName(tags);
         const replyChannel = normalizeChannel(channel);
         const game = getGame(replyChannel);
 
         const requiredPermission =
-            POKEMON_COMMAND_PERMISSIONS[msg];
+            POKEMON_COMMAND_PERMISSIONS[command];
 
         if (
             requiredPermission &&
@@ -773,6 +833,107 @@ async function startBot() {
 
             startNewRound(replyChannel);
             client.say(replyChannel, "Who's That Pokémon? Guess now in chat!");
+            return;
+        }
+
+        // View or manage the generation rotation for THIS Twitch channel.
+        // !wtpgen (singular) remains the viewer's generation-reveal command.
+        if (command === "!wtprotation") {
+            const parts = msg.split(/\s+/);
+            const action = parts[1] || "list";
+            const active = game.enabledGenerations;
+
+            if (action === "list" || action === "show") {
+                client.say(
+                    replyChannel,
+                    `🎲 Enabled generations: ${active.join(", ")}. Mods: !wtprotation only 1 2 3 | enable 4 | disable 9 | all`
+                );
+                return;
+            }
+
+            if (action === "help") {
+                client.say(
+                    replyChannel,
+                    "🎲 Rotation commands (mods): !wtprotation only 1 2 3 | !wtprotation enable 4 | !wtprotation disable 9 | !wtprotation all"
+                );
+                return;
+            }
+
+            // Viewers can check the rotation, but only a mod or the
+            // broadcaster may edit it in their own channel.
+            if (!canUseCommand("moderator", channel, tags)) {
+                return;
+            }
+
+            if (!["only", "enable", "disable", "all"].includes(action)) {
+                client.say(replyChannel, "Unknown option. Try !wtprotation help");
+                return;
+            }
+
+            let nextGenerations;
+
+            if (action === "all") {
+                if (parts.length !== 2) {
+                    client.say(replyChannel, "Usage: !wtprotation all");
+                    return;
+                }
+                nextGenerations = [...AVAILABLE_GENERATIONS];
+            } else {
+                // Accept either spaces or commas: '1 3 5' and '1,3,5'.
+                const requested = parts.slice(2)
+                    .join(" ")
+                    .split(/[\s,]+/)
+                    .filter(Boolean);
+
+                const chosen = requested.map(Number);
+                if (
+                    chosen.length === 0 ||
+                    chosen.some(generation => !AVAILABLE_GENERATIONS.includes(generation))
+                ) {
+                    client.say(
+                        replyChannel,
+                        `Choose valid generation numbers: ${AVAILABLE_GENERATIONS.join(", ")}. Example: !wtprotation ${action} 1 2 3`
+                    );
+                    return;
+                }
+
+                if (action === "only") {
+                    nextGenerations = chosen;
+                } else if (action === "enable") {
+                    nextGenerations = [...active, ...chosen];
+                } else {
+                    nextGenerations = active.filter(generation => !chosen.includes(generation));
+                }
+            }
+
+            nextGenerations = [...new Set(nextGenerations)].sort((a, b) => a - b);
+
+            // An empty rotation would make it impossible to begin a round.
+            if (nextGenerations.length === 0) {
+                client.say(replyChannel, "You must keep at least one generation enabled!");
+                return;
+            }
+
+            try {
+                const { data, error } = await supabaseAdmin
+                    .from("channels")
+                    .update({ enabled_generations: nextGenerations })
+                    .eq("channel_name", replyChannel)
+                    .select("channel_name")
+                    .maybeSingle();
+
+                if (error) throw error;
+                if (!data) throw new Error(`Channel ${replyChannel} not found in Supabase.`);
+
+                game.enabledGenerations = nextGenerations;
+                client.say(
+                    replyChannel,
+                    `✅ Rotation saved! Enabled generations: ${nextGenerations.join(", ")}. Changes take effect on the next Pokémon.`
+                );
+            } catch (error) {
+                console.error(`Couldn't save generation settings for ${replyChannel}:`, error);
+                client.say(replyChannel, "Couldn't save your Pokémon rotation. Please check the bot logs.");
+            }
             return;
         }
 
@@ -880,7 +1041,7 @@ async function startBot() {
 
                 client.say(
                     replyChannel,
-                    `🎉 ${displayName} guessed correctly! 🎉 • It was ${correctPokemon.displayName}! • ⌛ Next Pokémon in 5 seconds...`
+                    `🎉 ${displayName} guessed correctly! 🎉 • It was ${correctPokemon.displayName}! • `
                 );
 
                 io.to(replyChannel).emit("revealPokemon", {
@@ -897,6 +1058,7 @@ async function startBot() {
 }
 async function reloadChannels() {
     const latestChannels = await loadChannelsFromSupabase();
+    await loadGenerationSettings(latestChannels);
 
     // Join new channels
     for (const channel of latestChannels) {
@@ -1995,6 +2157,7 @@ const POKEMON_COMMAND_PERMISSIONS = {
     "!wtplb": "viewer",
 
     "!wtpgen": "viewer",
+    "!wtprotation": "viewer", // Viewing is public; edits are checked separately.
     "!wtphint": "viewer",
 
     "!wtpstart": "moderator",
