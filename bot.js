@@ -854,7 +854,7 @@ async function startBot() {
             if (action === "help") {
                 client.say(
                     replyChannel,
-                    "🎲 Rotation commands (mods): !wtprotation only 1 2 3 | !wtprotation enable 4 | !wtprotation disable 9 | !wtprotation all"
+                    "🎲 Rotation commands (mods): !wtprotation only <insert gen number>| !wtprotation enable <#> | !wtprotation disable <#> | !wtprotation all"
                 );
                 return;
             }
